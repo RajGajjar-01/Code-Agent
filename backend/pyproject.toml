@@ -1,15 +1,14 @@
 [project]
 name = "wordpress-agent"
-version = "0.2.0"
+version = "0.3.0"
 description = "AI-powered WordPress site builder agent with Google Drive integration"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "beautifulsoup4==4.14.3",
-    "fastapi[standard]==0.133.1",
-    "groq==1.0.0",
-    "httpx==0.28.1",
-    "python-dotenv==1.2.1",
+    "beautifulsoup4>=4.14.0",
+    "fastapi[standard]>=0.133.0",
+    "httpx>=0.28.0",
+    "python-dotenv>=1.2.0",
     # Settings management
     "pydantic-settings>=2.7.0",
     # Database
@@ -21,4 +20,8 @@ dependencies = [
     "google-auth-oauthlib>=1.2.1",
     "google-auth-httplib2>=0.2.0",
     "google-api-python-client>=2.159.0",
+    # LangChain + LangGraph (agentic core)
+    "langchain-core>=1.2.8,<2",
+    "langchain-groq>=1.1.0,<2",
+    "langgraph>=1.0.0,<2",
 ]

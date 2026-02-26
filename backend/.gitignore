@@ -14,3 +14,9 @@ wheels/
 
 # Downloaded assets
 assets/
+
+# Docker
+pgdata/
+
+# Alembic
+alembic/versions/__pycache__/

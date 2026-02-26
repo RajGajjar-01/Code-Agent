@@ -1,7 +1,7 @@
 [project]
 name = "wordpress-agent"
-version = "0.1.0"
-description = "AI-powered WordPress site builder agent using Groq"
+version = "0.2.0"
+description = "AI-powered WordPress site builder agent with Google Drive integration"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -10,4 +10,15 @@ dependencies = [
     "groq==1.0.0",
     "httpx==0.28.1",
     "python-dotenv==1.2.1",
+    # Settings management
+    "pydantic-settings>=2.7.0",
+    # Database
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    # Google OAuth & Drive API
+    "google-auth>=2.37.0",
+    "google-auth-oauthlib>=1.2.1",
+    "google-auth-httplib2>=0.2.0",
+    "google-api-python-client>=2.159.0",
 ]

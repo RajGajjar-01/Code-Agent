@@ -5,6 +5,8 @@ const state = {
     messages: [],
     chatId: null,
     isLoading: false,
+    driveConnected: false,
+    driveBreadcrumbs: [{ id: 'root', name: 'My Drive' }],
 };
 
 // --- DOM Elements ---
@@ -23,12 +25,28 @@ const els = {
     toolCallModal: document.getElementById('toolCallModal'),
     toolCallDetails: document.getElementById('toolCallDetails'),
     modalClose: document.getElementById('modalClose'),
+    // Google Drive elements
+    driveToggleBtn: document.getElementById('driveToggleBtn'),
+    drivePanel: document.getElementById('drivePanel'),
+    driveCloseBtn: document.getElementById('driveCloseBtn'),
+    driveConnectSection: document.getElementById('driveConnectSection'),
+    driveConnectBtn: document.getElementById('driveConnectBtn'),
+    driveUserSection: document.getElementById('driveUserSection'),
+    driveUserAvatar: document.getElementById('driveUserAvatar'),
+    driveUserName: document.getElementById('driveUserName'),
+    driveUserEmail: document.getElementById('driveUserEmail'),
+    driveDisconnectBtn: document.getElementById('driveDisconnectBtn'),
+    driveBreadcrumbs: document.getElementById('driveBreadcrumbs'),
+    driveFileList: document.getElementById('driveFileList'),
+    driveLoading: document.getElementById('driveLoading'),
 };
 
 // --- Initialize ---
 function init() {
     bindEvents();
     loadChatHistory();
+    checkGoogleAuthStatus();
+    handleOAuthRedirect();
 }
 
 // --- Event Bindings ---
@@ -71,6 +89,12 @@ function bindEvents() {
     els.toolCallModal.addEventListener('click', (e) => {
         if (e.target === els.toolCallModal) closeModal();
     });
+
+    // Google Drive
+    els.driveToggleBtn.addEventListener('click', toggleDriveSidebar);
+    els.driveCloseBtn.addEventListener('click', toggleDriveSidebar);
+    els.driveConnectBtn.addEventListener('click', connectGoogleDrive);
+    els.driveDisconnectBtn.addEventListener('click', disconnectGoogleDrive);
 }
 
 // --- Sidebar ---
@@ -317,3 +341,182 @@ function formatMarkdown(text) {
 
 // --- Boot ---
 document.addEventListener('DOMContentLoaded', init);
+
+
+// ============================================
+//   GOOGLE DRIVE INTEGRATION
+// ============================================
+
+function toggleDriveSidebar() {
+    const isCollapsed = els.drivePanel.classList.toggle('collapsed');
+    els.driveToggleBtn.classList.toggle('active', !isCollapsed);
+}
+
+function handleOAuthRedirect() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_auth') === 'success') {
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Open the drive panel and refresh status
+        els.drivePanel.classList.remove('collapsed');
+        els.driveToggleBtn.classList.add('active');
+        checkGoogleAuthStatus();
+    }
+}
+
+async function checkGoogleAuthStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/status`);
+        if (!response.ok) return;
+        const data = await response.json();
+
+        state.driveConnected = data.connected;
+
+        if (data.connected) {
+            showDriveConnected(data);
+        } else {
+            showDriveDisconnected();
+        }
+    } catch (e) {
+        // Silently fail — server may not be running yet
+        console.log('Auth status check failed:', e.message);
+    }
+}
+
+function connectGoogleDrive() {
+    // Redirect to backend OAuth login endpoint
+    window.location.href = `${API_BASE}/api/auth/login`;
+}
+
+async function disconnectGoogleDrive() {
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/disconnect`, { method: 'POST' });
+        if (response.ok) {
+            state.driveConnected = false;
+            showDriveDisconnected();
+        }
+    } catch (e) {
+        console.error('Disconnect failed:', e);
+    }
+}
+
+function showDriveConnected(data) {
+    els.driveConnectSection.classList.add('hidden');
+    els.driveUserSection.classList.remove('hidden');
+    els.driveBreadcrumbs.classList.remove('hidden');
+    els.driveFileList.classList.remove('hidden');
+
+    if (data.picture) {
+        els.driveUserAvatar.src = data.picture;
+        els.driveUserAvatar.style.display = 'block';
+    } else {
+        els.driveUserAvatar.style.display = 'none';
+    }
+    els.driveUserName.textContent = data.name || 'Google User';
+    els.driveUserEmail.textContent = data.email || '';
+
+    // Load root folder
+    state.driveBreadcrumbs = [{ id: 'root', name: 'My Drive' }];
+    loadDriveFolder('root');
+}
+
+function showDriveDisconnected() {
+    els.driveConnectSection.classList.remove('hidden');
+    els.driveUserSection.classList.add('hidden');
+    els.driveBreadcrumbs.classList.add('hidden');
+    els.driveFileList.classList.add('hidden');
+    els.driveLoading.classList.add('hidden');
+}
+
+async function loadDriveFolder(folderId) {
+    els.driveLoading.classList.remove('hidden');
+    els.driveFileList.classList.add('hidden');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/drive/folders?parent_id=${encodeURIComponent(folderId)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+
+        els.driveLoading.classList.add('hidden');
+        els.driveFileList.classList.remove('hidden');
+
+        renderBreadcrumbs();
+        renderDriveItems(data.items);
+    } catch (e) {
+        els.driveLoading.classList.add('hidden');
+        els.driveFileList.classList.remove('hidden');
+        els.driveFileList.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: hsl(var(--muted-foreground)); font-size: 0.82rem;">
+                Failed to load files. ${escapeHtml(e.message)}
+            </div>
+        `;
+    }
+}
+
+function renderBreadcrumbs() {
+    els.driveBreadcrumbs.innerHTML = state.driveBreadcrumbs.map((crumb, i) => {
+        const isLast = i === state.driveBreadcrumbs.length - 1;
+        const separator = i > 0 ? '<span class="breadcrumb-separator">/</span>' : '';
+        return `${separator}<span class="breadcrumb-item" data-id="${crumb.id}" onclick="navigateToBreadcrumb(${i})">${escapeHtml(crumb.name)}</span>`;
+    }).join('');
+}
+
+function navigateToBreadcrumb(index) {
+    if (index === state.driveBreadcrumbs.length - 1) return; // Already here
+    state.driveBreadcrumbs = state.driveBreadcrumbs.slice(0, index + 1);
+    const folderId = state.driveBreadcrumbs[index].id;
+    loadDriveFolder(folderId);
+}
+window.navigateToBreadcrumb = navigateToBreadcrumb;
+
+function renderDriveItems(items) {
+    if (!items || items.length === 0) {
+        els.driveFileList.innerHTML = `
+            <div style="padding: 30px; text-align: center; color: hsl(var(--muted-foreground)); font-size: 0.82rem;">
+                This folder is empty
+            </div>
+        `;
+        return;
+    }
+
+    const FOLDER_MIME = 'application/vnd.google-apps.folder';
+
+    els.driveFileList.innerHTML = items.map(item => {
+        const isFolder = item.mime_type === FOLDER_MIME;
+        const iconClass = isFolder ? 'folder' : 'file';
+        const icon = isFolder
+            ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`
+            : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>`;
+
+        const meta = item.modified_time
+            ? new Date(item.modified_time).toLocaleDateString()
+            : '';
+
+        return `
+            <div class="drive-file-item" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-mime="${item.mime_type}" onclick="onDriveItemClick(this)">
+                <div class="drive-file-icon ${iconClass}">${icon}</div>
+                <div class="drive-file-info">
+                    <span class="drive-file-name">${escapeHtml(item.name)}</span>
+                    <span class="drive-file-meta">${meta}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function onDriveItemClick(el) {
+    const id = el.dataset.id;
+    const name = el.dataset.name;
+    const mime = el.dataset.mime;
+
+    if (mime === 'application/vnd.google-apps.folder') {
+        state.driveBreadcrumbs.push({ id, name });
+        loadDriveFolder(id);
+    } else if (el.querySelector('[data-webviewlink]')) {
+        // Open file in new tab if web view link available
+        window.open(el.querySelector('[data-webviewlink]').dataset.webviewlink, '_blank');
+    }
+}
+window.onDriveItemClick = onDriveItemClick;

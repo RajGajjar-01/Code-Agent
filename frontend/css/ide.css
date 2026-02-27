@@ -1,0 +1,449 @@
+/* =============================================================================
+   IDE — WordPress code editor page styles
+   Requires: tokens.css, components.css
+   ============================================================================= */
+
+
+/* =============================================================================
+   IDE LAYOUT GRID
+   ============================================================================= */
+body.ide-page {
+    display: grid;
+    grid-template-rows: 57px 1fr;
+    grid-template-columns: 280px 1fr;
+    overflow: hidden;
+}
+
+
+/* =============================================================================
+   IDE HEADER
+   ============================================================================= */
+.ide-header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: hsla(var(--background), 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid hsl(var(--border));
+    z-index: 100;
+}
+
+.ide-header .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ide-header .header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.file-info-label {
+    font-size: 0.8rem;
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-mono);
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+/* =============================================================================
+   IDE SIDEBAR
+   ============================================================================= */
+#ide-sidebar {
+    background: var(--sidebar-bg);
+    border-right: 1px solid hsl(var(--border));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.ide-sidebar-section {
+    padding: 10px 12px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.ide-section-title {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 8px;
+}
+
+/* Root shortcut buttons */
+.root-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.root-btn {
+    width: 100%;
+    text-align: left;
+    padding: 7px 10px;
+    font-size: 0.85rem;
+    color: hsl(var(--muted-foreground));
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--font-sans);
+}
+
+.root-btn:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.root-btn.active {
+    background: hsl(var(--background));
+    border-color: hsl(var(--border));
+    color: var(--primary);
+    font-weight: 500;
+    box-shadow: var(--shadow-xs);
+}
+
+
+/* =============================================================================
+   FILE TREE
+   ============================================================================= */
+#file-tree-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px 4px calc(var(--depth, 0) * 16px + 12px);
+    font-size: 0.84rem;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    user-select: none;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.tree-row:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.tree-row.active {
+    background: hsl(var(--accent));
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.tree-chevron {
+    width: 14px;
+    text-align: center;
+    font-size: 9px;
+    opacity: 0.45;
+    flex-shrink: 0;
+}
+
+.tree-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.tree-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Inline action buttons shown on folder hover */
+.tree-actions {
+    position: absolute;
+    right: 8px;
+    display: none;
+    gap: 3px;
+    background: hsl(var(--accent));
+    padding-left: 8px;
+}
+
+.tree-row:hover .tree-actions {
+    display: flex;
+}
+
+.tree-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0.6;
+    transition: all var(--transition-fast);
+}
+
+.tree-action-btn:hover {
+    opacity: 1;
+    background: hsl(var(--secondary));
+}
+
+
+/* =============================================================================
+   TABS BAR
+   ============================================================================= */
+#ide-tabs-bar {
+    display: flex;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid hsl(var(--border));
+    min-height: 38px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+#ide-tabs-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.ide-tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px;
+    min-width: 110px;
+    max-width: 200px;
+    font-size: 0.8rem;
+    color: hsl(var(--muted-foreground));
+    background: transparent;
+    border-right: 1px solid hsl(var(--border));
+    cursor: pointer;
+    position: relative;
+    transition: background var(--transition-fast);
+    white-space: nowrap;
+}
+
+.ide-tab:hover {
+    background: hsl(var(--accent));
+}
+
+.ide-tab.active {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-weight: 500;
+}
+
+.ide-tab.active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary);
+}
+
+.ide-tab-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+
+.ide-tab-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+    display: none;
+}
+
+.ide-tab.unsaved .ide-tab-dot {
+    display: block;
+}
+
+.ide-tab.unsaved .ide-tab-close {
+    display: none !important;
+}
+
+.ide-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 3px;
+    font-size: 14px;
+    opacity: 0;
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: hsl(var(--muted-foreground));
+    transition: all var(--transition-fast);
+    line-height: 1;
+}
+
+.ide-tab:hover .ide-tab-close {
+    opacity: 0.6;
+}
+
+.ide-tab-close:hover {
+    opacity: 1 !important;
+    background: hsl(var(--accent));
+}
+
+
+/* =============================================================================
+   EDITOR CONTAINER
+   ============================================================================= */
+#ide-editor-area {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: hsl(var(--background));
+}
+
+#ide-editor-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Welcome screen shown when no file is open */
+#ide-welcome {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 14px;
+    color: hsl(var(--muted-foreground));
+    z-index: 5;
+    background: hsl(var(--background));
+    animation: fadeIn 0.4s ease-out;
+}
+
+#ide-welcome h2 {
+    color: hsl(var(--foreground));
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+#ide-welcome p {
+    font-size: 0.875rem;
+    max-width: 320px;
+    line-height: 1.6;
+}
+
+#ide-welcome kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    background: hsl(var(--secondary));
+    border: 1px solid hsl(var(--border));
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+}
+
+
+/* =============================================================================
+   IDE TOASTS
+   ============================================================================= */
+#ide-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+}
+
+#ide-toast-container .toast {
+    pointer-events: auto;
+    border-color: hsl(var(--border));
+}
+
+.toast.toast-error {
+    border-color: hsl(var(--destructive));
+    color: hsl(var(--destructive));
+}
+
+
+/* =============================================================================
+   CREATE FILE/FOLDER MODAL
+   ============================================================================= */
+#ide-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: hsla(0, 0%, 0%, 0.35);
+    backdrop-filter: blur(4px);
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+#ide-modal-overlay.visible {
+    display: flex;
+}
+
+.ide-modal {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    width: 380px;
+    max-width: 90vw;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.25s ease-out;
+}
+
+.ide-modal h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: hsl(var(--foreground));
+}
+
+.ide-modal input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    color: hsl(var(--foreground));
+    background: hsl(var(--background));
+    outline: none;
+    transition: border-color var(--transition-fast);
+}
+
+.ide-modal input:focus {
+    border-color: var(--primary);
+}
+
+.ide-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}

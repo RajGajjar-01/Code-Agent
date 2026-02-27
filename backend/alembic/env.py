@@ -12,6 +12,7 @@ from app.core.database import Base
 
 # Import all models so metadata is populated
 from app.models.user import OAuthToken  # noqa: F401
+from app.models.chat import Conversation, Message  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,15 +1,10 @@
-"""WordPress tools exposed to the LangGraph agent via LangChain @tool decorator.
 
-Covers:  Pages, Posts, Media, ACF Fields, Theme Management, and Site Info.
-"""
 
 from typing import Any, Optional
 
 from langchain_core.tools import tool
 
-# ---------------------------------------------------------------------------
-# Helper: get the WP client from the tool's config (injected at call time)
-# ---------------------------------------------------------------------------
+
 
 _wp_client: Optional[Any] = None
 
@@ -26,9 +21,7 @@ def _client():
     return _wp_client
 
 
-# ============================================================================
-#  PAGE TOOLS
-# ============================================================================
+
 
 @tool
 async def list_pages(per_page: int = 10, status: str = "publish") -> dict:
@@ -65,9 +58,7 @@ async def delete_page(page_id: int, force: bool = True) -> dict:
     return await _client().delete_page(page_id, force=force)
 
 
-# ============================================================================
-#  POST TOOLS
-# ============================================================================
+
 
 @tool
 async def list_posts(per_page: int = 10, status: str = "publish") -> dict:
@@ -87,9 +78,7 @@ async def delete_post(post_id: int, force: bool = True) -> dict:
     return await _client().delete_post(post_id, force=force)
 
 
-# ============================================================================
-#  MEDIA TOOLS
-# ============================================================================
+
 
 @tool
 async def upload_media(file_path: str, title: str = "") -> dict:
@@ -97,9 +86,7 @@ async def upload_media(file_path: str, title: str = "") -> dict:
     return await _client().upload_media(file_path, title=title or None)
 
 
-# ============================================================================
-#  ACF (Advanced Custom Fields) TOOLS
-# ============================================================================
+
 
 @tool
 async def get_acf_fields(post_id: int, post_type: str = "pages") -> dict:
@@ -133,9 +120,7 @@ async def list_acf_field_groups() -> dict:
     return await _client().list_acf_field_groups()
 
 
-# ============================================================================
-#  THEME TOOLS
-# ============================================================================
+
 
 @tool
 async def list_themes() -> dict:
@@ -178,9 +163,7 @@ async def activate_theme(theme_slug: str) -> dict:
     return await _client().activate_theme(theme_slug)
 
 
-# ============================================================================
-#  SITE INFO
-# ============================================================================
+
 
 @tool
 async def get_site_info() -> dict:
@@ -188,9 +171,7 @@ async def get_site_info() -> dict:
     return await _client().get_site_info()
 
 
-# ---------------------------------------------------------------------------
-#  TOOL REGISTRY — list of all tools for binding to the LLM
-# ---------------------------------------------------------------------------
+
 
 ALL_TOOLS = [
     # Pages

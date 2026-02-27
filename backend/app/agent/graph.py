@@ -1,15 +1,4 @@
-"""LangGraph agent graph — the core ReAct loop.
 
-Architecture:
-  ┌─────────┐     tool_calls?     ┌───────────┐
-  │  agent   │ ──────────────────▶ │   tools   │
-  │  (LLM)   │ ◀──────────────────│ (execute)  │
-  └─────────┘      results        └───────────┘
-       │
-       │  no tool calls → END
-       ▼
-     __end__
-"""
 
 import json
 from typing import Any
@@ -22,9 +11,7 @@ from app.agent.state import AgentState
 from app.agent.tools import ALL_TOOLS, set_wp_client
 from app.core.config import settings
 
-# ---------------------------------------------------------------------------
-#  System prompt
-# ---------------------------------------------------------------------------
+
 
 SYSTEM_PROMPT = """You are a powerful WordPress Agent with full control over a WordPress site.
 
@@ -45,9 +32,7 @@ IMPORTANT RULES:
 7. Be conversational but thorough. Explain what you're doing at each step."""
 
 
-# ---------------------------------------------------------------------------
-#  Build the LLM with tools bound
-# ---------------------------------------------------------------------------
+
 
 def _build_llm():
     """Create the ChatGroq LLM with all tools bound."""
@@ -59,9 +44,7 @@ def _build_llm():
     return llm.bind_tools(ALL_TOOLS)
 
 
-# ---------------------------------------------------------------------------
-#  Graph nodes
-# ---------------------------------------------------------------------------
+
 
 async def agent_node(state: AgentState) -> dict:
     """Call the LLM with the current messages. It may return tool calls or a final answer."""
@@ -121,9 +104,7 @@ async def tool_node(state: AgentState) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-#  Routing logic
-# ---------------------------------------------------------------------------
+
 
 def should_continue(state: AgentState) -> str:
     """Decide whether to call tools or end the conversation."""
@@ -133,9 +114,7 @@ def should_continue(state: AgentState) -> str:
     return END
 
 
-# ---------------------------------------------------------------------------
-#  Build the graph
-# ---------------------------------------------------------------------------
+
 
 def build_agent_graph() -> StateGraph:
     """Construct the LangGraph ReAct agent."""
@@ -157,25 +136,14 @@ def build_agent_graph() -> StateGraph:
     return graph.compile()
 
 
-# ---------------------------------------------------------------------------
-#  Public API
-# ---------------------------------------------------------------------------
+
 
 async def run_agent(
     message: str,
     history: list[dict],
     wp_client: Any = None,
 ) -> dict:
-    """Run the LangGraph agent and return the response.
-
-    Args:
-        message: The user's message.
-        history: Previous conversation messages [{"role": ..., "content": ...}].
-        wp_client: The WordPressClient instance.
-
-    Returns:
-        dict with "response" and "tool_calls" keys.
-    """
+    """Run the LangGraph agent and return the response."""
     # Inject the WP client into tools
     set_wp_client(wp_client)
 

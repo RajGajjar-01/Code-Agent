@@ -1,4 +1,3 @@
-"""Google Drive API v3 interactions."""
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -25,10 +24,7 @@ def list_folder_contents(
     page_token: str | None = None,
     page_size: int = 50,
 ) -> dict:
-    """List files and folders inside a specific Google Drive folder.
-
-    Returns dict with keys: items, next_page_token, folder_name
-    """
+    """List files and folders inside a specific Google Drive folder."""
     service = _build_drive_service(access_token, refresh_token)
 
     # Get folder name

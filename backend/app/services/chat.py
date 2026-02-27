@@ -1,4 +1,3 @@
-"""Chat orchestration service — LangGraph agent with WordPress tools."""
 
 from typing import Any, Optional
 
@@ -10,10 +9,7 @@ async def process_chat(
     history: list[dict],
     wp_client: Optional[Any] = None,
 ) -> dict:
-    """Process a chat message through the LangGraph WordPress agent.
-
-    Returns dict with: response, tool_calls
-    """
+    """Process a chat message through the LangGraph WordPress agent."""
     return await run_agent(
         message=message,
         history=history,

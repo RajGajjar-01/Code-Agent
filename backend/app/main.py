@@ -4,9 +4,10 @@ from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, chat, drive, scrape
+from app.api.routes import auth, chat, drive, ide, scrape
 from app.core.config import settings
 from app.services.wordpress import WordPressClient
 
@@ -43,7 +44,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware ────────────────────────────────────────────────
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -52,14 +53,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers ──────────────────────────────────────────────────
+
 app.include_router(auth.router)
 app.include_router(drive.router)
 app.include_router(chat.router)
 app.include_router(scrape.router)
+app.include_router(ide.router, prefix="/api/ide", tags=["IDE"])
 
 
-# ── Health Check ─────────────────────────────────────────────
+@app.get("/ide")
+async def serve_ide():
+    """Serve the IDE single-page frontend."""
+    ide_path = FRONTEND_DIR / "ide.html"
+    if ide_path.exists():
+        return FileResponse(str(ide_path))
+    return {"error": "IDE frontend not found"}
+
+
+
 @app.get("/health")
 async def health():
     return {
@@ -70,7 +81,7 @@ async def health():
     }
 
 
-# ── Serve Frontend ───────────────────────────────────────────
+
 if FRONTEND_DIR.exists():
     app.mount(
         "/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend"

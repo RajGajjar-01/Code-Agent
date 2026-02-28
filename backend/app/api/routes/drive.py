@@ -1,4 +1,4 @@
-"""Google Drive browsing routes — uses google-auth SDK for token management."""
+"""Google Drive browsing routes — per-user via JWT authentication."""
 
 from datetime import datetime, timezone
 
@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import refresh_credentials
+from app.core.security import get_current_user_email, refresh_credentials
 from app.models.user import OAuthToken
 from app.schemas.drive import DriveFolderResponse
 from app.services.google_drive import list_folder_contents
@@ -15,10 +15,16 @@ from app.services.google_drive import list_folder_contents
 router = APIRouter(prefix="/api/drive", tags=["drive"])
 
 
-async def _get_valid_token(db: AsyncSession) -> OAuthToken:
-    """Get a valid Google OAuth token, refreshing via the SDK if expired."""
+async def _get_valid_token(
+    db: AsyncSession,
+    email: str | None,
+) -> OAuthToken:
+    """Get a valid Google OAuth token for the authenticated user, refreshing if expired."""
+    if not email:
+        raise HTTPException(status_code=401, detail="Not authenticated. Please connect first.")
+
     result = await db.execute(
-        select(OAuthToken).where(OAuthToken.provider == "google").limit(1)
+        select(OAuthToken).where(OAuthToken.email == email)
     )
     token = result.scalar_one_or_none()
 
@@ -35,7 +41,6 @@ async def _get_valid_token(db: AsyncSession) -> OAuthToken:
                 detail="Token expired and no refresh token available. Please reconnect.",
             )
         try:
-            # Use the google-auth SDK to refresh credentials
             creds = refresh_credentials(token.refresh_token)
             token.access_token = creds.token
             token.token_expiry = creds.expiry
@@ -53,10 +58,11 @@ async def _get_valid_token(db: AsyncSession) -> OAuthToken:
 async def list_folders(
     parent_id: str = Query("root", description="Parent folder ID"),
     page_token: str = Query(None, description="Pagination token"),
+    current_email: str | None = Depends(get_current_user_email),
     db: AsyncSession = Depends(get_db),
 ):
-    """List folders and files inside a Google Drive folder."""
-    token = await _get_valid_token(db)
+    """List folders and files inside a Google Drive folder for the authenticated user."""
+    token = await _get_valid_token(db, current_email)
 
     try:
         result = list_folder_contents(
@@ -76,10 +82,11 @@ async def list_folders(
 async def list_files_in_folder(
     folder_id: str,
     page_token: str = Query(None, description="Pagination token"),
+    current_email: str | None = Depends(get_current_user_email),
     db: AsyncSession = Depends(get_db),
 ):
     """List files and subfolders inside a specific Google Drive folder."""
-    token = await _get_valid_token(db)
+    token = await _get_valid_token(db, current_email)
 
     try:
         result = list_folder_contents(

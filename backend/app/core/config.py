@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/callback"
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/google/callback"
 
 
     DATABASE_URL: str = "postgresql+asyncpg://wordpress_agent:changeme@localhost:5432/wordpress_agent_db"

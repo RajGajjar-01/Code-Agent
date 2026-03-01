@@ -1,10 +1,6 @@
-
-
 from typing import Any, Optional
 
 from langchain_core.tools import tool
-
-
 
 _wp_client: Optional[Any] = None
 
@@ -17,10 +13,11 @@ def set_wp_client(client: Any) -> None:
 
 def _client():
     if not _wp_client:
-        raise RuntimeError("WordPress client not configured. Check WP_BASE_URL, WP_USERNAME, and WP_APP_PASSWORD in .env")
+        raise RuntimeError(
+            "WordPress client not configured. Check WP_BASE_URL, WP_USERNAME, "
+            "and WP_APP_PASSWORD in .env"
+        )
     return _wp_client
-
-
 
 
 @tool
@@ -58,8 +55,6 @@ async def delete_page(page_id: int, force: bool = True) -> dict:
     return await _client().delete_page(page_id, force=force)
 
 
-
-
 @tool
 async def list_posts(per_page: int = 10, status: str = "publish") -> dict:
     """List all WordPress posts. Returns post IDs, titles, and links."""
@@ -78,14 +73,10 @@ async def delete_post(post_id: int, force: bool = True) -> dict:
     return await _client().delete_post(post_id, force=force)
 
 
-
-
 @tool
 async def upload_media(file_path: str, title: str = "") -> dict:
     """Upload a file from local path to WordPress media library."""
     return await _client().upload_media(file_path, title=title or None)
-
-
 
 
 @tool
@@ -118,8 +109,6 @@ async def list_acf_field_groups() -> dict:
     Requires ACF Pro or the REST API to be enabled for field groups.
     """
     return await _client().list_acf_field_groups()
-
-
 
 
 @tool
@@ -163,14 +152,10 @@ async def activate_theme(theme_slug: str) -> dict:
     return await _client().activate_theme(theme_slug)
 
 
-
-
 @tool
 async def get_site_info() -> dict:
     """Get WordPress site name, description, and URL."""
     return await _client().get_site_info()
-
-
 
 
 ALL_TOOLS = [

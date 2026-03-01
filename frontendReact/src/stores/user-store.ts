@@ -24,6 +24,7 @@ export const useUserStore = create<UserState>((set) => ({
     checkSession: async () => {
         set({ isLoading: true })
         try {
+            // First, try to get user info with existing access token
             const { data } = await userApi.getMe()
             set({
                 id: data.id,
@@ -32,8 +33,25 @@ export const useUserStore = create<UserState>((set) => ({
                 isAuthenticated: true,
                 isLoading: false,
             })
-        } catch {
-            set({ id: null, email: '', name: '', isAuthenticated: false, isLoading: false })
+        } catch (error) {
+            // If getMe fails, try to refresh the token (might have refresh token cookie)
+            try {
+                const { data: refreshData } = await userApi.refresh()
+                setAccessToken(refreshData.access_token)
+                
+                // Now try getMe again with the new access token
+                const { data } = await userApi.getMe()
+                set({
+                    id: data.id,
+                    email: data.email,
+                    name: data.name,
+                    isAuthenticated: true,
+                    isLoading: false,
+                })
+            } catch (refreshError) {
+                // Both getMe and refresh failed - user is not authenticated
+                set({ id: null, email: '', name: '', isAuthenticated: false, isLoading: false })
+            }
         }
     },
 

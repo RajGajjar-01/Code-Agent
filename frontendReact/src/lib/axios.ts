@@ -38,9 +38,9 @@ api.interceptors.response.use(
         const originalRequest = error.config
 
         if (error.response?.status === 401 && !originalRequest._retry) {
-            if (originalRequest.url?.includes('/api/auth/login') || 
-                originalRequest.url?.includes('/api/auth/register') ||
-                originalRequest.url?.includes('/api/auth/refresh')) {
+            // Skip refresh for auth endpoints to prevent infinite loops
+            const authEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/me']
+            if (authEndpoints.some(endpoint => originalRequest.url?.includes(endpoint))) {
                 return Promise.reject(error)
             }
 
@@ -59,8 +59,11 @@ api.interceptors.response.use(
                 return api(originalRequest)
             } catch (refreshError) {
                 setAccessToken(null)
-                if (!window.location.pathname.includes('/login') && 
-                    !window.location.pathname.includes('/signup')) {
+                // Only redirect if not already on a public route
+                const publicRoutes = ['/login', '/signup']
+                const isPublicRoute = publicRoutes.some(route => window.location.pathname.includes(route))
+                
+                if (!isPublicRoute) {
                     window.location.href = '/login'
                 }
                 return Promise.reject(refreshError)
@@ -73,15 +76,22 @@ api.interceptors.response.use(
 
 // Chat
 export const chatApi = {
-    send(message: string, conversationId: string | null, userEmail: string) {
+    send(message: string, conversationId: string | null, userEmail: string, llmProvider?: string) {
+        if (!userEmail) {
+            throw new Error('Authentication required. Please log in to send messages.')
+        }
         return api.post<ChatResponse>('/api/chat', {
             message,
             conversation_id: conversationId,
             user_email: userEmail,
+            llm_provider: llmProvider,
         })
     },
 
     listConversations(userEmail: string, limit = 40) {
+        if (!userEmail) {
+            throw new Error('Authentication required. Please log in to view conversations.')
+        }
         return api.get<{ id: string; title: string }[]>('/api/conversations', {
             params: { user_email: userEmail, limit },
         })
@@ -120,6 +130,10 @@ export const userApi = {
 
     getMe() {
         return api.get<{ id: number; email: string; name: string; is_active: boolean }>('/api/auth/me')
+    },
+
+    refresh() {
+        return api.post<{ access_token: string; token_type: string }>('/api/auth/refresh')
     },
 }
 

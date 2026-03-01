@@ -1,4 +1,3 @@
-import json
 from typing import Any, Dict, Optional
 
 TOOL_DEFINITIONS = [
@@ -11,7 +10,11 @@ TOOL_DEFINITIONS = [
                 "type": "object",
                 "properties": {
                     "per_page": {"type": "integer", "default": 10},
-                    "status": {"type": "string", "enum": ["publish", "draft", "pending", "private", "trash"], "default": "publish"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["publish", "draft", "pending", "private", "trash"],
+                        "default": "publish",
+                    },
                 },
             },
         },
@@ -69,7 +72,10 @@ TOOL_DEFINITIONS = [
             "description": "Delete a page.",
             "parameters": {
                 "type": "object",
-                "properties": {"page_id": {"type": "integer"}, "force": {"type": "boolean", "default": False}},
+                "properties": {
+                    "page_id": {"type": "integer"},
+                    "force": {"type": "boolean", "default": False},
+                },
                 "required": ["page_id"],
             },
         },
@@ -83,7 +89,11 @@ TOOL_DEFINITIONS = [
                 "type": "object",
                 "properties": {
                     "per_page": {"type": "integer", "default": 10},
-                    "status": {"type": "string", "enum": ["publish", "draft", "pending", "private", "trash"], "default": "publish"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["publish", "draft", "pending", "private", "trash"],
+                        "default": "publish",
+                    },
                 },
             },
         },
@@ -111,7 +121,10 @@ TOOL_DEFINITIONS = [
             "description": "Delete a post.",
             "parameters": {
                 "type": "object",
-                "properties": {"post_id": {"type": "integer"}, "force": {"type": "boolean", "default": False}},
+                "properties": {
+                    "post_id": {"type": "integer"},
+                    "force": {"type": "boolean", "default": False},
+                },
                 "required": ["post_id"],
             },
         },
@@ -137,6 +150,7 @@ TOOL_DEFINITIONS = [
         },
     },
 ]
+
 
 async def execute_tool(name: str, args: Dict[str, Any], wp_client: Optional[Any]) -> Dict[str, Any]:
     """Route tool calls to WordPress client functions."""

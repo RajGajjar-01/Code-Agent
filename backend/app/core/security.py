@@ -1,5 +1,3 @@
-"""Google OAuth 2.0 security utilities, JWT authentication, and password hashing."""
-
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -84,7 +82,7 @@ def create_access_token(data: dict) -> str:
 def create_refresh_token(data: dict) -> str:
     """Create long-lived refresh token (7 days)."""
     import uuid
-    
+
     payload = {
         "sub": data.get("email"),
         "user_id": data.get("user_id"),
@@ -171,6 +169,7 @@ def refresh_credentials(refresh_token: str) -> Credentials:
         scopes=GOOGLE_SCOPES,
     )
     from google.auth.transport.requests import Request
+
     creds.refresh(Request())
     return creds
 

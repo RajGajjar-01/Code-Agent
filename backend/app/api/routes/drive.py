@@ -1,5 +1,3 @@
-"""Google Drive browsing routes — per-user via JWT authentication."""
-
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,9 +21,7 @@ async def _get_valid_token(
     if not email:
         raise HTTPException(status_code=401, detail="Not authenticated. Please connect first.")
 
-    result = await db.execute(
-        select(OAuthToken).where(OAuthToken.email == email)
-    )
+    result = await db.execute(select(OAuthToken).where(OAuthToken.email == email))
     token = result.scalar_one_or_none()
 
     if not token:
@@ -47,9 +43,7 @@ async def _get_valid_token(
             token.updated_at = datetime.now(timezone.utc)
             await db.commit()
         except Exception as e:
-            raise HTTPException(
-                status_code=401, detail=f"Failed to refresh token: {str(e)}"
-            )
+            raise HTTPException(status_code=401, detail=f"Failed to refresh token: {str(e)}")
 
     return token
 
@@ -73,9 +67,7 @@ async def list_folders(
         )
         return DriveFolderResponse(**result)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to list Drive contents: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to list Drive contents: {str(e)}")
 
 
 @router.get("/files/{folder_id}", response_model=DriveFolderResponse)
@@ -97,6 +89,4 @@ async def list_files_in_folder(
         )
         return DriveFolderResponse(**result)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to list folder contents: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to list folder contents: {str(e)}")

@@ -1,5 +1,3 @@
-"""Async CRUD helpers for conversations and messages."""
-
 import uuid
 from typing import Optional
 
@@ -8,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.chat import Conversation, Message
+
 
 async def get_or_create_conversation(
     db: AsyncSession,
@@ -65,13 +64,10 @@ async def append_messages(
 
     # Bump the conversation's updated_at so list ordering stays correct
     await db.execute(
-        update(Conversation)
-        .where(Conversation.id == conversation_id)
-        .values(updated_at=func.now())
+        update(Conversation).where(Conversation.id == conversation_id).values(updated_at=func.now())
     )
     await db.flush()
     return user_msg, assistant_msg
-
 
 
 async def list_conversations(
@@ -137,7 +133,6 @@ async def get_conversation_detail(
         )
     )
     return result.scalar_one_or_none()
-
 
 
 async def soft_delete_conversation(

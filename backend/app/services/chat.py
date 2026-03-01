@@ -1,4 +1,3 @@
-
 from typing import Any, Optional
 
 from app.agent.graph import run_agent
@@ -8,10 +7,12 @@ async def process_chat(
     message: str,
     history: list[dict],
     wp_client: Optional[Any] = None,
+    llm_provider: Optional[str] = None,
 ) -> dict:
     """Process a chat message through the LangGraph WordPress agent."""
     return await run_agent(
         message=message,
         history=history,
         wp_client=wp_client,
+        llm_provider=llm_provider,
     )

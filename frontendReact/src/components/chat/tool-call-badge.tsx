@@ -1,7 +1,5 @@
-import { useState } from 'react'
 import { Wrench } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { ToolCallModal } from '@/components/chat/tool-call-modal'
 import type { ToolCall } from '@/types'
 
 interface ToolCallBadgeProps {
@@ -9,19 +7,13 @@ interface ToolCallBadgeProps {
 }
 
 export function ToolCallBadge({ toolCall }: ToolCallBadgeProps) {
-    const [isOpen, setIsOpen] = useState(false)
-
     return (
-        <>
-            <Badge
-                variant={toolCall.status === 'success' ? 'default' : 'secondary'}
-                className="gap-1 cursor-pointer hover:bg-primary/80 transition-colors text-xs"
-                onClick={() => setIsOpen(true)}
-            >
-                <Wrench className="h-3 w-3" />
-                Tool: {toolCall.name || toolCall.function || 'tool'}
-            </Badge>
-            <ToolCallModal toolCall={toolCall} open={isOpen} onOpenChange={setIsOpen} />
-        </>
+        <Badge
+            variant="outline"
+            className="gap-1 transition-colors text-xs bg-primary/10"
+        >
+            <Wrench className="h-3 w-3" />
+            Tool: {toolCall.name || toolCall.function || 'tool'}
+        </Badge>
     )
 }

@@ -36,9 +36,9 @@ export function ChatPage() {
     const showWelcome = !conversationId && messages.length === 0
 
     return (
-        <div className="flex flex-1 overflow-hidden min-w-0">
+        <div className="flex flex-1 overflow-hidden min-w-0 h-screen">
             {/* Main chat area */}
-            <div className="flex flex-1 flex-col min-w-0 bg-background h-screen">
+            <div className="flex flex-1 flex-col min-w-0 bg-background h-full">
                 <AppHeader />
 
                 {/* Messages / Welcome */}
@@ -61,7 +61,7 @@ export function ChatPage() {
             {/* Right panel with transition */}
             <div
                 className={cn(
-                    'transition-all duration-200 ease-in-out overflow-hidden',
+                    'transition-all duration-200 ease-in-out overflow-hidden border-l border-sidebar-border h-full flex-none',
                     connectorsPanelOpen ? 'w-[300px]' : 'w-0'
                 )}
             >

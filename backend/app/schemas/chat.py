@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -8,6 +7,7 @@ from pydantic import BaseModel
 
 class ChatMessage(BaseModel):
     """A single chat turn (kept for backward compatibility)."""
+
     role: str
     content: str
 
@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     user_email: Optional[str] = "anonymous"
+    llm_provider: Optional[str] = None  # groq, glm5, or gemini
 
 
 class ChatResponse(BaseModel):

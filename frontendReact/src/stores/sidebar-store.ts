@@ -5,7 +5,7 @@ interface SidebarState {
   appSidebarOpen: boolean
   ideSidebarOpen: boolean
   connectorsPanelOpen: boolean
-  
+
   // Actions
   toggleAppSidebar: () => void
   toggleIdeSidebar: () => void
@@ -36,7 +36,7 @@ const loadState = (): Pick<SidebarState, 'appSidebarOpen' | 'ideSidebarOpen' | '
   } catch (error) {
     console.warn('Failed to load sidebar state from localStorage:', error)
   }
-  
+
   // Default state
   return {
     appSidebarOpen: true,
@@ -50,7 +50,7 @@ const saveState = (state: Pick<SidebarState, 'appSidebarOpen' | 'ideSidebarOpen'
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
-  
+
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
@@ -63,7 +63,7 @@ const saveState = (state: Pick<SidebarState, 'appSidebarOpen' | 'ideSidebarOpen'
 export const useSidebarStore = create<SidebarState>((set, get) => ({
   // Initialize with loaded state
   ...loadState(),
-  
+
   toggleAppSidebar: () => {
     set((state) => {
       const newState = { ...state, appSidebarOpen: !state.appSidebarOpen }
@@ -71,7 +71,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
       return newState
     })
   },
-  
+
   toggleIdeSidebar: () => {
     set((state) => {
       const newState = { ...state, ideSidebarOpen: !state.ideSidebarOpen }
@@ -79,7 +79,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
       return newState
     })
   },
-  
+
   toggleConnectorsPanel: () => {
     set((state) => {
       const newState = { ...state, connectorsPanelOpen: !state.connectorsPanelOpen }
@@ -87,7 +87,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
       return newState
     })
   },
-  
+
   setAppSidebarOpen: (open: boolean) => {
     set((state) => {
       const newState = { ...state, appSidebarOpen: open }
@@ -95,7 +95,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
       return newState
     })
   },
-  
+
   setIdeSidebarOpen: (open: boolean) => {
     set((state) => {
       const newState = { ...state, ideSidebarOpen: open }
@@ -103,7 +103,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
       return newState
     })
   },
-  
+
   setConnectorsPanelOpen: (open: boolean) => {
     set((state) => {
       const newState = { ...state, connectorsPanelOpen: open }

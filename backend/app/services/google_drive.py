@@ -1,4 +1,3 @@
-
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 
@@ -31,9 +30,7 @@ def list_folder_contents(
     folder_name = "My Drive"
     if folder_id != "root":
         try:
-            folder_meta = (
-                service.files().get(fileId=folder_id, fields="name").execute()
-            )
+            folder_meta = service.files().get(fileId=folder_id, fields="name").execute()
             folder_name = folder_meta.get("name", folder_id)
         except Exception:
             folder_name = folder_id
@@ -46,7 +43,10 @@ def list_folder_contents(
             q=query,
             pageSize=page_size,
             pageToken=page_token,
-            fields="nextPageToken, files(id, name, mimeType, modifiedTime, size, iconLink, webViewLink)",
+            fields=(
+                "nextPageToken, files(id, name, mimeType, modifiedTime, "
+                "size, iconLink, webViewLink)"
+            ),
             orderBy="folder, name",
         )
         .execute()

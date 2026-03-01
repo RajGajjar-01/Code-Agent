@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, chat, drive, ide, scrape
+from app.api.routes import auth, chat, drive, scrape
 from app.core.config import settings
 from app.services.wordpress import WordPressClient
 
@@ -13,7 +13,6 @@ wp_client: Optional[WordPressClient] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup / shutdown lifecycle."""
     global wp_client
 
     if settings.WP_BASE_URL and settings.WP_USERNAME and settings.WP_APP_PASSWORD:
@@ -32,11 +31,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="WordPress Agent",
     description="AI-powered WordPress site builder with Google Drive integration",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
-# CORS — allow React frontend to send cookies
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_ORIGIN],
@@ -49,7 +47,6 @@ app.include_router(auth.router)
 app.include_router(drive.router)
 app.include_router(chat.router)
 app.include_router(scrape.router)
-app.include_router(ide.router, prefix="/api/ide", tags=["IDE"])
 
 
 @app.get("/health")

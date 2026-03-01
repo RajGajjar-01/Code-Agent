@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime, timezone
 
@@ -31,24 +30,19 @@ class Conversation(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
-    user_email: Mapped[str] = mapped_column(
-        String(255), nullable=False, index=True
-    )
+    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     title: Mapped[str] = mapped_column(
         String(500),
         nullable=False,
         default="New Conversation",
     )
-    is_deleted: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, index=True
-    )
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
-
 
     messages: Mapped[list["Message"]] = relationship(
         "Message",
@@ -64,9 +58,7 @@ class Message(Base):
 
     __tablename__ = "messages"
 
-    id: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, autoincrement=True
-    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
@@ -83,7 +75,4 @@ class Message(Base):
         DateTime(timezone=True), nullable=False, default=_now
     )
 
-
-    conversation: Mapped["Conversation"] = relationship(
-        "Conversation", back_populates="messages"
-    )
+    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")

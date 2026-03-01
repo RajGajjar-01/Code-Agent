@@ -4,7 +4,7 @@ from collections import defaultdict
 from time import time
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, Cookie
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,6 @@ from app.core.security import (
     COOKIE_MAX_AGE,
     COOKIE_NAME,
     REFRESH_COOKIE_NAME,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS,
     create_jwt,
     create_access_token,
@@ -54,15 +53,12 @@ def check_rate_limit(identifier: str) -> None:
     """Check if identifier has exceeded rate limit."""
     now = time()
     cutoff = now - RATE_LIMIT_WINDOW
-    
+
     _login_attempts[identifier] = [t for t in _login_attempts[identifier] if t > cutoff]
-    
+
     if len(_login_attempts[identifier]) >= MAX_LOGIN_ATTEMPTS:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many attempts, please try again later"
-        )
-    
+        raise HTTPException(status_code=429, detail="Too many attempts, please try again later")
+
     _login_attempts[identifier].append(now)
 
 
@@ -95,14 +91,14 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    
+
     token_data = {"email": user.email, "user_id": user.id}
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
-    
+
     expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     await token_service.store_refresh_token(db, refresh_token, user.id, expires_at)
-    
+
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
@@ -112,23 +108,20 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/",
     )
-    
+
     logger.info(f"User registered: {user.email} at {datetime.now(timezone.utc)}")
-    
+
     return TokenResponse(access_token=access_token)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    body: LoginRequest,
-    request: Request,
-    response: Response,
-    db: AsyncSession = Depends(get_db)
+    body: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)
 ):
     """Login with email and password."""
     client_ip = request.client.host if request.client else "unknown"
     check_rate_limit(f"login:{client_ip}")
-    
+
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
@@ -138,16 +131,16 @@ async def login(
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")
-    
+
     await token_service.delete_user_refresh_tokens(db, user.id)
-    
+
     token_data = {"email": user.email, "user_id": user.id}
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
-    
+
     expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     await token_service.store_refresh_token(db, refresh_token, user.id, expires_at)
-    
+
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
@@ -157,9 +150,9 @@ async def login(
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/",
     )
-    
+
     logger.info(f"User logged in: {user.email} at {datetime.now(timezone.utc)}")
-    
+
     return TokenResponse(access_token=access_token)
 
 
@@ -167,42 +160,42 @@ async def login(
 async def refresh(
     response: Response,
     refresh_token: str | None = Cookie(None, alias=REFRESH_COOKIE_NAME),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Refresh access token using refresh token."""
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing")
-    
+
     payload = decode_refresh_token(refresh_token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     if await token_service.is_blacklisted(db, refresh_token):
         raise HTTPException(status_code=401, detail="Token has been revoked")
-    
+
     stored_token = await token_service.get_refresh_token(db, refresh_token)
     if not stored_token:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     user_id = payload.get("user_id")
     email = payload.get("sub")
-    
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    
+
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     token_data = {"email": email, "user_id": user_id}
     new_access_token = create_access_token(token_data)
     new_refresh_token = create_refresh_token(token_data)
-    
+
     await token_service.add_to_blacklist(db, refresh_token, stored_token.expires_at)
     await token_service.delete_refresh_token(db, refresh_token)
-    
+
     expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     await token_service.store_refresh_token(db, new_refresh_token, user_id, expires_at)
-    
+
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=new_refresh_token,
@@ -212,9 +205,9 @@ async def refresh(
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/",
     )
-    
+
     logger.info(f"Token refreshed for user: {email} at {datetime.now(timezone.utc)}")
-    
+
     return TokenResponse(access_token=new_access_token)
 
 
@@ -222,7 +215,7 @@ async def refresh(
 async def logout(
     response: Response,
     refresh_token: str | None = Cookie(None, alias=REFRESH_COOKIE_NAME),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Logout and invalidate refresh token."""
     if refresh_token:
@@ -230,10 +223,10 @@ async def logout(
         if stored_token:
             await token_service.add_to_blacklist(db, refresh_token, stored_token.expires_at)
             await token_service.delete_refresh_token(db, refresh_token)
-    
+
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
     response.delete_cookie(key=COOKIE_NAME, path="/")
-    
+
     return {"status": "logged_out"}
 
 
@@ -244,7 +237,7 @@ async def get_me(current_user: User = Depends(get_current_active_user)):
         id=current_user.id,
         email=current_user.email,
         name=current_user.name,
-        is_active=current_user.is_active
+        is_active=current_user.is_active,
     )
 
 
@@ -252,19 +245,19 @@ async def get_me(current_user: User = Depends(get_current_active_user)):
 async def change_password(
     body: PasswordChangeRequest,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Change user password and invalidate all refresh tokens."""
     if not verify_password(body.old_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect password")
-    
+
     current_user.hashed_password = hash_password(body.new_password)
     await db.commit()
-    
+
     await token_service.delete_user_refresh_tokens(db, current_user.id)
-    
+
     logger.info(f"Password changed for user: {current_user.email}")
-    
+
     return {"status": "password_changed"}
 
 
@@ -356,6 +349,7 @@ async def google_callback(
 
 # --- Google Drive Connection Status ---
 
+
 @router.get("/status", response_model=AuthStatusResponse)
 async def drive_status(
     current_email: str | None = Depends(get_current_user_email),
@@ -365,9 +359,7 @@ async def drive_status(
     if not current_email:
         return AuthStatusResponse(connected=False)
 
-    result = await db.execute(
-        select(OAuthToken).where(OAuthToken.email == current_email)
-    )
+    result = await db.execute(select(OAuthToken).where(OAuthToken.email == current_email))
     token = result.scalar_one_or_none()
 
     if not token:
@@ -390,9 +382,7 @@ async def disconnect_drive(
     if not current_email:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    result = await db.execute(
-        select(OAuthToken).where(OAuthToken.email == current_email)
-    )
+    result = await db.execute(select(OAuthToken).where(OAuthToken.email == current_email))
     token = result.scalar_one_or_none()
 
     if not token:

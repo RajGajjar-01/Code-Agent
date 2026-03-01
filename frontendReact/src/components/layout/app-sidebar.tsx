@@ -33,7 +33,8 @@ export function AppSidebar() {
 
     useEffect(() => {
         loadConversations()
-    }, [loadConversations])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const handleConversationClick = async (id: string) => {
         // If we're on the IDE page, navigate to chat page first

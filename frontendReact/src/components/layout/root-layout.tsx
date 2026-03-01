@@ -9,7 +9,7 @@ export function RootLayout() {
 
     return (
         <TooltipProvider>
-            <SidebarProvider open={appSidebarOpen} onOpenChange={setAppSidebarOpen}>
+            <SidebarProvider open={appSidebarOpen} onOpenChange={setAppSidebarOpen} className="h-screen overflow-hidden">
                 <AppSidebar />
                 <Outlet />
             </SidebarProvider>

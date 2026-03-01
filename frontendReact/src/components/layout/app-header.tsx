@@ -1,8 +1,8 @@
 import { Link } from 'react-router'
 import { FileCode2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { ModelSelector } from '@/components/chat/model-selector'
 import { useChatStore } from '@/stores/chat-store'
 
 export function AppHeader() {
@@ -22,11 +22,8 @@ export function AppHeader() {
             </div>
 
             <div className="flex items-center gap-3">
-                {/* Model badge */}
-                <Badge variant="outline" className="rounded-full gap-1.5 text-xs font-medium hidden sm:flex">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
-                    Groq — LLaMA 3.3 70B
-                </Badge>
+                {/* Model selector */}
+                <ModelSelector />
 
                 {/* IDE link */}
                 <Button variant="outline" size="sm" className="rounded-full gap-1.5 text-primary border-primary" asChild>

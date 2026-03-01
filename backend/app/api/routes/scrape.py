@@ -1,5 +1,3 @@
-"""Asset scraper endpoint route."""
-
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.chat import ScrapeRequest

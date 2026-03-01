@@ -1,19 +1,22 @@
-
+from datetime import datetime
 from typing import Annotated, Any, Optional
 
 from langgraph.graph.message import add_messages
+from langgraph.managed.is_last_step import RemainingSteps
 from typing_extensions import TypedDict
 
 
+class ExecutionMetadata(TypedDict):
+    start_time: datetime
+    total_tool_calls: int
+    failed_tool_calls: int
+    circuit_breaker_trips: int
+
+
 class AgentState(TypedDict):
-    """State that flows through the LangGraph agent."""
-
-
     messages: Annotated[list, add_messages]
-
-
-    # The WordPress client instance (injected at runtime)
-    wp_client: Optional[Any]
-
-
+    remaining_steps: RemainingSteps
     tool_calls_executed: list[dict]
+    wp_client: Optional[Any]
+    execution_metadata: ExecutionMetadata
+    config: dict

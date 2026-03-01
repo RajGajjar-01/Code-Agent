@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, chat, drive, scrape
+from app.api.routes import auth, chat, drive
 from app.core.config import settings
 from app.services.wordpress import WordPressClient
 
@@ -46,7 +46,6 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(drive.router)
 app.include_router(chat.router)
-app.include_router(scrape.router)
 
 
 @app.get("/health")

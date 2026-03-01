@@ -69,7 +69,7 @@ export function ConnectorsPanel() {
             </div>
 
             <div className="p-4 space-y-4 shrink-0 border-b border-sidebar-border/50">
-                <div className="bg-background border border-sidebar-border rounded-2xl p-4 shadow-sm transition-all hover:border-primary/50 group overflow-hidden">
+                <div className="bg-background border border-sidebar-border rounded-lg p-4 shadow-sm transition-all hover:border-primary/50 group overflow-hidden">
                     <div className="flex justify-between items-start gap-2 mb-4 min-w-0">
                         <div className="flex-1 min-w-0 text-left">
                             <h4 className="text-[0.9rem] font-bold text-foreground truncate">Google Drive</h4>
@@ -77,7 +77,7 @@ export function ConnectorsPanel() {
                                 {isConnected ? 'Account connected successfully.' : 'Connect and access your files.'}
                             </p>
                         </div>
-                        <div className="w-11 h-11 flex items-center justify-center bg-secondary rounded-xl shrink-0">
+                        <div className="w-11 h-11 flex items-center justify-center bg-secondary rounded-md shrink-0">
                             <img src={driveLogo} alt="Google Drive" className="w-8 h-8" />
                         </div>
                     </div>

@@ -3,9 +3,6 @@ import type {
     AuthStatus,
     ChatResponse,
     DriveResponse,
-    FileResponse,
-    RootsResponse,
-    TreeResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -62,7 +59,7 @@ api.interceptors.response.use(
                 // Only redirect if not already on a public route
                 const publicRoutes = ['/login', '/signup']
                 const isPublicRoute = publicRoutes.some(route => window.location.pathname.includes(route))
-                
+
                 if (!isPublicRoute) {
                     window.location.href = '/login'
                 }
@@ -160,25 +157,3 @@ export const driveApi = {
     },
 }
 
-// IDE Filesystem
-export const ideApi = {
-    getRoots() {
-        return api.get<RootsResponse>('/api/ide/tree/roots')
-    },
-
-    getTree(dir: string) {
-        return api.get<TreeResponse>('/api/ide/tree', { params: { dir } })
-    },
-
-    readFile(path: string) {
-        return api.get<FileResponse>('/api/ide/file', { params: { path } })
-    },
-
-    writeFile(path: string, content: string) {
-        return api.post('/api/ide/file', { path, content })
-    },
-
-    createNode(parentPath: string, name: string, type: string) {
-        return api.post('/api/ide/create', { parent_path: parentPath, name, type })
-    },
-}

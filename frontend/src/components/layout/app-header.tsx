@@ -1,6 +1,3 @@
-import { Link } from 'react-router'
-import { FileCode2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { ModelSelector } from '@/components/chat/model-selector'
 import { useChatStore } from '@/stores/chat-store'
@@ -22,16 +19,7 @@ export function AppHeader() {
             </div>
 
             <div className="flex items-center gap-3">
-                {/* Model selector */}
                 <ModelSelector />
-
-                {/* IDE link */}
-                <Button variant="outline" size="sm" className="rounded-full gap-1.5 text-primary border-primary" asChild>
-                    <Link to="/ide">
-                        <FileCode2 className="h-3.5 w-3.5" />
-                        IDE
-                    </Link>
-                </Button>
             </div>
         </header>
     )

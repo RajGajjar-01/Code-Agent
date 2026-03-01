@@ -39,10 +39,10 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     }, [])
 
     return (
-        <div className="h-[110px] bg-background/90 backdrop-blur-md flex flex-col justify-center px-4 sm:px-6 shrink-0">
+        <div className="min-h-[110px] py-4 bg-background/90 backdrop-blur-md flex flex-col justify-center px-4 sm:px-6 shrink-0">
             <div className="max-w-4xl w-full mx-auto">
                 {/* Input box */}
-                <div className="flex items-end gap-2 px-4 py-2 rounded-xl border bg-background shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+                <div className="flex items-end gap-2 px-4 py-2 rounded-lg border bg-background shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
                     <textarea
                         ref={textareaRef}
                         placeholder="Describe the WordPress site you want to build..."

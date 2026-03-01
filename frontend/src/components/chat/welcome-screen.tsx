@@ -33,9 +33,9 @@ interface WelcomeScreenProps {
 
 export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
     return (
-        <div className="flex flex-col items-center justify-center min-h-full px-6 py-16 text-center animate-in fade-in duration-500">
+        <div className="flex flex-col items-center justify-start min-h-full px-6 py-20 text-center animate-in fade-in duration-500">
             {/* Floating icon */}
-            <div className="mb-5 p-4 bg-secondary border rounded-2xl animate-bounce [animation-duration:3s] [animation-timing-function:ease-in-out]">
+            <div className="mb-5 p-4 bg-secondary border rounded-lg animate-bounce [animation-duration:3s] [animation-timing-function:ease-in-out]">
                 <Layers className="h-12 w-12" />
             </div>
 

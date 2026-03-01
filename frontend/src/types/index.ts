@@ -34,25 +34,6 @@ export interface Breadcrumb {
     name: string
 }
 
-export interface TreeNode {
-    name: string
-    path: string
-    type: 'file' | 'directory'
-    extension?: string
-    children?: TreeNode[]
-}
-
-export interface Root {
-    name: string
-    path: string
-}
-
-export interface TabData {
-    content: string
-    language: string
-    savedContent: string
-    isDirty: boolean
-}
 
 export interface ChatResponse {
     response: string
@@ -72,17 +53,3 @@ export interface DriveResponse {
     next_page_token?: string
 }
 
-export interface TreeResponse {
-    tree: {
-        children: TreeNode[]
-    }
-}
-
-export interface FileResponse {
-    content: string
-    language: string
-}
-
-export interface RootsResponse {
-    roots: Root[]
-}

@@ -40,7 +40,7 @@ The frontend is a modern React application with shadcn/ui.
 
 1.  **Navigate to the frontend directory**:
     ```bash
-    cd frontendReact
+    cd frontend
     ```
 
 2.  **Install dependencies**:
@@ -80,5 +80,5 @@ Enables the agent to interact with your WordPress site.
 
 ## 🏗️ Project Structure
 - `/backend`: FastAPI application and AI agent logic.
-- `/frontendReact`: React + Vite + Tailwind CSS frontend.
+- `/frontend`: React + Vite + Tailwind CSS frontend.
 - `/knowledge`: Knowledge items for the agent.

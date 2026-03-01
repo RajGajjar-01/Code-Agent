@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useSidebarStore } from '@/stores/sidebar-store'
 
 export function useSidebarShortcuts() {
-  const { toggleAppSidebar, toggleIdeSidebar, toggleConnectorsPanel } = useSidebarStore()
+  const { toggleAppSidebar, toggleConnectorsPanel } = useSidebarStore()
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -16,12 +16,6 @@ export function useSidebarShortcuts() {
         return
       }
 
-      // Ctrl+Shift+E or Cmd+Shift+E: Toggle IdeSidebar
-      if (isModifier && event.shiftKey && event.key === 'E') {
-        event.preventDefault()
-        toggleIdeSidebar()
-        return
-      }
 
       // Ctrl+Shift+D or Cmd+Shift+D: Toggle ConnectorsPanel
       if (isModifier && event.shiftKey && event.key === 'D') {
@@ -36,5 +30,5 @@ export function useSidebarShortcuts() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [toggleAppSidebar, toggleIdeSidebar, toggleConnectorsPanel])
+  }, [toggleAppSidebar, toggleConnectorsPanel])
 }

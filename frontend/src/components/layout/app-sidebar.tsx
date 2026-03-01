@@ -37,13 +37,7 @@ export function AppSidebar() {
     }, [])
 
     const handleConversationClick = async (id: string) => {
-        // If we're on the IDE page, navigate to chat page first
-        if (location.pathname === '/ide') {
-            await openConversation(id)
-            navigate('/')
-        } else {
-            await openConversation(id)
-        }
+        await openConversation(id)
     }
 
     return (

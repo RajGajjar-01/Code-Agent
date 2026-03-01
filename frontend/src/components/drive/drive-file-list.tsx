@@ -30,12 +30,12 @@ export function DriveFileList({ items, onFolderClick }: DriveFileListProps) {
                     <button
                         key={item.id}
                         onClick={() => isFolder && onFolderClick(item.id, item.name)}
-                        className="flex items-center gap-3 w-full rounded-xl px-2.5 py-2.5 text-left border border-transparent hover:bg-background hover:border-border hover:shadow-sm transition-all group min-w-0"
+                        className="flex items-center gap-3 w-full rounded-lg px-2.5 py-2.5 text-left border border-transparent hover:bg-background hover:border-border hover:shadow-sm transition-all group min-w-0"
                     >
                         {/* Icon Container using Theme Colors */}
                         <div
                             className={cn(
-                                'h-9 w-9 rounded-xl flex items-center justify-center shrink-0 transition-colors',
+                                'h-9 w-9 rounded-md flex items-center justify-center shrink-0 transition-colors',
                                 isFolder
                                     ? 'bg-folder text-folder-foreground'
                                     : 'bg-secondary text-muted-foreground',

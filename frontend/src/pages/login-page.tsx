@@ -47,7 +47,7 @@ export function LoginPage() {
             <div className="w-full max-w-[400px] space-y-8">
                 {/* Logo */}
                 <div className="flex flex-col items-center gap-3">
-                    <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+                    <div className="h-14 w-14 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
                         <Layers className="h-7 w-7 text-primary-foreground" />
                     </div>
                     <div className="text-center">

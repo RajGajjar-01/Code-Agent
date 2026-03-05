@@ -58,3 +58,7 @@ agent_state.db
 .knowledge/
 knowledge/
 wordpress_agent_db/
+
+# --- Uploads ---
+uploads/
+backend/uploads/

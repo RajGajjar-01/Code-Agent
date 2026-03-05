@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { chatApi } from '@/lib/axios'
-import type { Conversation, Message, ToolCall } from '@/types'
+import type { AttachmentRef, Conversation, Message, ToolCall } from '@/types'
 import { useUserStore } from './user-store'
 import { useSettingsStore } from './settings-store'
 
@@ -11,7 +11,7 @@ interface ChatStore {
     conversations: Conversation[]
     isLoading: boolean
 
-    sendMessage: (text: string) => Promise<void>
+    sendMessage: (text: string, files?: File[]) => Promise<void>
     loadConversations: () => Promise<void>
     openConversation: (id: string) => Promise<void>
     deleteConversation: (id: string) => Promise<void>
@@ -65,6 +65,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                     role: m.role as 'user' | 'assistant',
                     content: m.content,
                     tool_calls: m.tool_calls as Message['tool_calls'],
+                    attachments:
+                        (m.tool_calls as { attachments?: AttachmentRef[] } | undefined)?.attachments,
                 }),
             )
             set({ conversationId: id, messages })
@@ -74,7 +76,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }
     },
 
-    sendMessage: async (text) => {
+    sendMessage: async (text, files) => {
         const { email, isAuthenticated } = useUserStore.getState()
         
         // Check authentication before sending
@@ -88,12 +90,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         const { conversationId } = get()
         const llmProvider = useSettingsStore.getState().llmProvider
 
+        let attachments: AttachmentRef[] | undefined
+
         // Optimistically add user message
         const userMsg: Message = { role: 'user', content: text }
         set((s) => ({ messages: [...s.messages, userMsg], isLoading: true }))
 
         try {
-            const { data } = await chatApi.send(text, conversationId, email, llmProvider)
+            if (files?.length) {
+                const uploadRes = await chatApi.uploadAttachments(files)
+                attachments = uploadRes.data
+                set((s) => {
+                    const msgs = [...s.messages]
+                    const last = msgs[msgs.length - 1]
+                    if (last?.role === 'user' && last.content === text) {
+                        msgs[msgs.length - 1] = { ...last, attachments }
+                    }
+                    return { messages: msgs }
+                })
+            }
+
+            const { data } = await chatApi.send(text, conversationId, email, llmProvider, attachments)
 
             // Track new conversation
             if (data.conversation_id && !conversationId) {
@@ -120,6 +137,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 // Handle authentication errors
                 if (err.message.includes('Authentication required')) {
                     toast.error('Please log in to send messages')
+                    set({ isLoading: false })
                     window.location.href = '/login'
                     return
                 }

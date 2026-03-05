@@ -3,6 +3,7 @@
 import logging
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -12,34 +13,82 @@ class AgentConfig(BaseSettings):
     """Agent configuration with validation and environment variable support."""
 
     # LLM Provider
-    llm_provider: Literal["groq", "glm5", "gemini"] = "groq"
-    groq_api_key: str | None = None
-    zai_api_key: str | None = None
-    google_api_key: str | None = None
+    llm_provider: Literal["groq", "glm5", "gemini"] = Field(
+        default="groq",
+        validation_alias=AliasChoices("LLM_PROVIDER", "AGENT_LLM_PROVIDER"),
+    )
+    groq_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GROQ_API_KEY", "AGENT_GROQ_API_KEY"),
+    )
+    zai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ZAI_API_KEY", "AGENT_ZAI_API_KEY"),
+    )
+    google_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_API_KEY", "AGENT_GOOGLE_API_KEY"),
+    )
 
     # Model settings
-    groq_model: str = "llama-3.3-70b-versatile"
-    glm5_model: str = "glm-5"
-    gemini_model: str = "gemini-2.5-flash"  # Latest as of 2026
+    groq_model: str = Field(
+        default="llama-3.3-70b-versatile",
+        validation_alias=AliasChoices("GROQ_MODEL", "AGENT_GROQ_MODEL"),
+    )
+    glm5_model: str = Field(
+        default="glm-5",
+        validation_alias=AliasChoices("GLM5_MODEL", "AGENT_GLM5_MODEL"),
+    )
+    gemini_model: str = Field(
+        default="gemini-2.5-flash",  # Latest as of 2026
+        validation_alias=AliasChoices("GEMINI_MODEL", "AGENT_GEMINI_MODEL"),
+    )
 
     # Agent behavior
-    recursion_limit: int = 25
-    retry_attempts: int = 3
+    recursion_limit: int = Field(
+        default=25,
+        validation_alias=AliasChoices("RECURSION_LIMIT", "AGENT_RECURSION_LIMIT"),
+    )
+    retry_attempts: int = Field(
+        default=3,
+        validation_alias=AliasChoices("RETRY_ATTEMPTS", "AGENT_RETRY_ATTEMPTS"),
+    )
 
     # Circuit breaker
-    circuit_breaker_threshold: int = 5
-    circuit_breaker_timeout: int = 60
+    circuit_breaker_threshold: int = Field(
+        default=5,
+        validation_alias=AliasChoices(
+            "CIRCUIT_BREAKER_THRESHOLD", "AGENT_CIRCUIT_BREAKER_THRESHOLD"
+        ),
+    )
+    circuit_breaker_timeout: int = Field(
+        default=60,
+        validation_alias=AliasChoices(
+            "CIRCUIT_BREAKER_TIMEOUT", "AGENT_CIRCUIT_BREAKER_TIMEOUT"
+        ),
+    )
 
     # Observability
-    langsmith_tracing: bool = False
-    langsmith_api_key: str | None = None
-    langsmith_project: str = "wordpress-agent"
+    langsmith_tracing: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("LANGSMITH_TRACING", "AGENT_LANGSMITH_TRACING"),
+    )
+    langsmith_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LANGSMITH_API_KEY", "AGENT_LANGSMITH_API_KEY"),
+    )
+    langsmith_project: str = Field(
+        default="wordpress-agent",
+        validation_alias=AliasChoices("LANGSMITH_PROJECT", "AGENT_LANGSMITH_PROJECT"),
+    )
 
     # State persistence
-    checkpoint_db_path: str = "agent_state.db"
+    checkpoint_db_path: str = Field(
+        default="agent_state.db",
+        validation_alias=AliasChoices("CHECKPOINT_DB_PATH", "AGENT_CHECKPOINT_DB_PATH"),
+    )
 
     model_config = {
-        "env_prefix": "AGENT_",
         "case_sensitive": False,
     }
 
@@ -47,15 +96,15 @@ class AgentConfig(BaseSettings):
         """Ensure required API keys are present for the selected provider."""
         if self.llm_provider == "groq" and not self.groq_api_key:
             raise ValueError(
-                "GROQ_API_KEY or AGENT_GROQ_API_KEY required for groq provider"
+                "GROQ_API_KEY required for groq provider"
             )
         elif self.llm_provider == "glm5" and not self.zai_api_key:
             raise ValueError(
-                "ZAI_API_KEY or AGENT_ZAI_API_KEY required for glm5 provider"
+                "ZAI_API_KEY required for glm5 provider"
             )
         elif self.llm_provider == "gemini" and not self.google_api_key:
             raise ValueError(
-                "GOOGLE_API_KEY or AGENT_GOOGLE_API_KEY required for gemini provider"
+                "GOOGLE_API_KEY required for gemini provider"
             )
 
     def validate_config_values(self) -> None:

@@ -30,7 +30,7 @@ export function ChatPage() {
         scrollToBottom()
     }, [messages, isLoading, scrollToBottom])
 
-    const handleSend = useCallback((text: string) => sendMessage(text), [sendMessage])
+    const handleSend = useCallback((text: string, files?: File[]) => sendMessage(text, files), [sendMessage])
     const handleSuggestionClick = useCallback((prompt: string) => sendMessage(prompt), [sendMessage])
 
     const showWelcome = !conversationId && messages.length === 0

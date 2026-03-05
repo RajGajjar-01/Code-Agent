@@ -45,6 +45,7 @@ async def append_messages(
     *,
     conversation_id: uuid.UUID,
     user_content: str,
+    user_tool_calls: Optional[dict] = None,
     assistant_content: str,
     tool_calls: Optional[list[dict]] = None,
 ) -> tuple[Message, Message]:
@@ -53,6 +54,7 @@ async def append_messages(
         conversation_id=conversation_id,
         role="user",
         content=user_content,
+        tool_calls=user_tool_calls,
     )
     assistant_msg = Message(
         conversation_id=conversation_id,

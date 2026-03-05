@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import auth, chat, drive
 from app.core.config import settings
@@ -34,8 +35,13 @@ app = FastAPI(
     description="AI-powered WordPress site builder with Google Drive integration",
     version="0.3.0",
     lifespan=lifespan,
-    default_response_class=ORJSONResponse,
 )
+
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+_UPLOADS_ROOT = _BACKEND_ROOT / "uploads"
+_UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_ROOT)), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

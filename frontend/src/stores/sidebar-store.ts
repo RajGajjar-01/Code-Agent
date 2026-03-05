@@ -14,7 +14,7 @@ interface SidebarState {
 const STORAGE_KEY = 'sidebar-state'
 
 // Debounce timer
-let saveTimer: NodeJS.Timeout | null = null
+let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 // Load initial state from localStorage
 const loadState = (): Pick<SidebarState, 'appSidebarOpen' | 'connectorsPanelOpen'> => {
@@ -52,7 +52,7 @@ const saveState = (state: Pick<SidebarState, 'appSidebarOpen' | 'connectorsPanel
   }, 300)
 }
 
-export const useSidebarStore = create<SidebarState>((set, get) => ({
+export const useSidebarStore = create<SidebarState>((set) => ({
   // Initialize with loaded state
   ...loadState(),
 

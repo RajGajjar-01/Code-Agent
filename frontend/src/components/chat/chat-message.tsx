@@ -13,6 +13,7 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message }: ChatMessageProps) {
     const isUser = message.role === 'user'
+    const hasAttachments = Boolean(message.attachments?.length)
 
     return (
         <div className={cn('px-4 py-3 animate-in fade-in slide-in-from-bottom-2 duration-300')}>
@@ -36,10 +37,40 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     </p>
 
                     {isUser ? (
-                        /* User bubble */
-                        <div className="bg-secondary border rounded-lg rounded-tr-sm text-sm leading-relaxed px-4 py-2.5 max-w-[85%] text-left break-words overflow-hidden">
-                            {message.content}
-                        </div>
+                        <>
+                            {/* User bubble */}
+                            {message.content || message.attachments?.length ? (
+                                <div
+                                    className={cn(
+                                        'bg-secondary border rounded-lg rounded-tr-sm text-sm leading-relaxed max-w-[85%] text-left break-words overflow-hidden',
+                                        hasAttachments ? 'px-2.5 py-2' : 'px-4 py-2.5',
+                                    )}
+                                >
+                                    {message.attachments?.length ? (
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {message.attachments.map((a) => (
+                                                <a
+                                                    key={a.id}
+                                                    href={a.url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="block border rounded-lg overflow-hidden bg-muted"
+                                                >
+                                                    <img
+                                                        src={a.url}
+                                                        alt={a.filename}
+                                                        className="h-24 w-24 object-cover"
+                                                        loading="lazy"
+                                                    />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    ) : null}
+
+                                    {message.content ? <div>{message.content}</div> : null}
+                                </div>
+                            ) : null}
+                        </>
                     ) : (
                         /* Assistant markdown */
                         <div className="prose prose-sm max-w-full dark:prose-invert prose-pre:bg-muted prose-pre:border prose-code:text-sm text-[0.9rem] leading-[1.7] break-words overflow-hidden">

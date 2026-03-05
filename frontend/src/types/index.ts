@@ -2,6 +2,16 @@ export interface Message {
     role: 'user' | 'assistant'
     content: string
     tool_calls?: ToolCallGroup
+    attachments?: AttachmentRef[]
+}
+
+export interface AttachmentRef {
+    id: string
+    filename: string
+    content_type: string
+    size_bytes: number
+    url: string
+    local_path: string
 }
 
 export interface ToolCallGroup {

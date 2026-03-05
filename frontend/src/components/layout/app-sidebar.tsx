@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import { useChatStore } from '@/stores/chat-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router'
 import {
     Sidebar,
     SidebarContent,
@@ -19,8 +18,6 @@ import {
 } from '@/components/ui/sidebar'
 
 export function AppSidebar() {
-    const navigate = useNavigate()
-    const location = useLocation()
     const { toggleConnectorsPanel, connectorsPanelOpen } = useSidebarStore()
     const {
         conversations,

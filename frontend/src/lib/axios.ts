@@ -3,6 +3,7 @@ import type {
     AuthStatus,
     ChatResponse,
     DriveResponse,
+    AttachmentRef,
 } from '@/types'
 
 const api = axios.create({
@@ -73,7 +74,21 @@ api.interceptors.response.use(
 
 // Chat
 export const chatApi = {
-    send(message: string, conversationId: string | null, userEmail: string, llmProvider?: string) {
+    uploadAttachments(files: File[]) {
+        const formData = new FormData()
+        files.forEach((f) => formData.append('files', f))
+        return api.post<AttachmentRef[]>('/api/chat/attachments', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        })
+    },
+
+    send(
+        message: string,
+        conversationId: string | null,
+        userEmail: string,
+        llmProvider?: string,
+        attachments?: AttachmentRef[],
+    ) {
         if (!userEmail) {
             throw new Error('Authentication required. Please log in to send messages.')
         }
@@ -82,6 +97,7 @@ export const chatApi = {
             conversation_id: conversationId,
             user_email: userEmail,
             llm_provider: llmProvider,
+            attachments,
         })
     },
 

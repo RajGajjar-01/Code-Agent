@@ -19,6 +19,16 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_email: Optional[str] = "anonymous"
     llm_provider: Optional[str] = None  # groq, glm5, or gemini
+    attachments: Optional[list["AttachmentRef"]] = None
+
+
+class AttachmentRef(BaseModel):
+    id: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    url: str
+    local_path: str
 
 
 class ChatResponse(BaseModel):

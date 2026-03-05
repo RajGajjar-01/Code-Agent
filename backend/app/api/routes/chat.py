@@ -1,7 +1,8 @@
 import uuid
 import logging
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -10,6 +11,7 @@ from app.models.user import User
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
+    AttachmentRef,
     ConversationDetail,
     ConversationOut,
     MessageOut,
@@ -29,6 +31,65 @@ router = APIRouter(tags=["chat"])
 
 # wp_client is injected at startup from main.py (same pattern as before)
 wp_client = None
+
+_UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "chat"
+_MAX_FILES_PER_MESSAGE = 5
+_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+
+
+@router.post("/api/chat/attachments", response_model=list[AttachmentRef])
+async def upload_chat_attachments(
+    files: list[UploadFile] = File(...),
+    current_user: User = Depends(get_current_active_user),
+):
+    if not files:
+        return []
+    if len(files) > _MAX_FILES_PER_MESSAGE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Max {_MAX_FILES_PER_MESSAGE} images per message",
+        )
+
+    user_dir = _UPLOADS_DIR / current_user.email
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    uploaded: list[AttachmentRef] = []
+    for f in files:
+        if not (f.content_type or "").startswith("image/"):
+            raise HTTPException(status_code=400, detail="Only image uploads are supported")
+
+        attachment_id = str(uuid.uuid4())
+        safe_name = Path(f.filename or "upload").name
+        stored_name = f"{attachment_id}_{safe_name}"
+        out_path = user_dir / stored_name
+
+        total = 0
+        try:
+            with open(out_path, "wb") as out:
+                while True:
+                    chunk = await f.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > _MAX_FILE_SIZE_BYTES:
+                        raise HTTPException(status_code=400, detail="Image exceeds 10MB limit")
+                    out.write(chunk)
+        finally:
+            await f.close()
+
+        url = f"/uploads/chat/{current_user.email}/{stored_name}"
+        uploaded.append(
+            AttachmentRef(
+                id=attachment_id,
+                filename=safe_name,
+                content_type=f.content_type or "application/octet-stream",
+                size_bytes=total,
+                url=url,
+                local_path=str(out_path.resolve()),
+            )
+        )
+
+    return uploaded
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -60,9 +121,23 @@ async def chat(
         # 2. Build history from persisted messages
         history = [{"role": m.role, "content": m.content} for m in convo.messages]
 
+        attachments = request.attachments or []
+        attachment_context = ""
+        if attachments:
+            lines = [
+                "\n\nAttached images (uploaded to server; only upload to WordPress if needed):",
+            ]
+            for a in attachments:
+                lines.append(
+                    f"- {a.filename} ({a.content_type}, {a.size_bytes} bytes) local_path={a.local_path} url={a.url}"
+                )
+            attachment_context = "\n".join(lines)
+
+        message_for_agent = request.message + attachment_context
+
         # 3. Call the agent with optional llm_provider
         result = await process_chat(
-            message=request.message,
+            message=message_for_agent,
             history=history,
             wp_client=wp_client,
             llm_provider=request.llm_provider,
@@ -73,6 +148,7 @@ async def chat(
             db,
             conversation_id=convo.id,
             user_content=request.message,
+            user_tool_calls={"attachments": [a.model_dump() for a in attachments]} if attachments else None,
             assistant_content=result["response"],
             tool_calls=result.get("tool_calls") or [],
         )

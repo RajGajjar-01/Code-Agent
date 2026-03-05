@@ -3,6 +3,7 @@ from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import ORJSONResponse
 
 from app.api.routes import auth, chat, drive
 from app.core.config import settings
@@ -33,6 +34,7 @@ app = FastAPI(
     description="AI-powered WordPress site builder with Google Drive integration",
     version="0.3.0",
     lifespan=lifespan,
+    default_response_class=ORJSONResponse,
 )
 
 app.add_middleware(

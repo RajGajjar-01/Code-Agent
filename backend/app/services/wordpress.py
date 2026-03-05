@@ -6,7 +6,6 @@ import httpx
 
 
 def _raise_for_status(response: httpx.Response):
-    """Raise with WordPress error message body if request failed."""
     if response.is_error:
         try:
             detail = response.json()
@@ -17,8 +16,6 @@ def _raise_for_status(response: httpx.Response):
 
 
 class WordPressClient:
-    """Async client for the WordPress REST API."""
-
     def __init__(self, base_url: str, username: str, app_password: str):
         self.base_url = base_url.rstrip("/")
         self.api_url = f"{self.base_url}/wp-json/wp/v2"
@@ -30,11 +27,9 @@ class WordPressClient:
         )
 
     async def close(self):
-        """Close client sessions."""
         await self.client.aclose()
 
     async def list_pages(self, **kwargs) -> dict:
-        """List site pages."""
         response = await self.client.get(f"{self.api_url}/pages", params=kwargs)
         response.raise_for_status()
         return {
@@ -46,7 +41,6 @@ class WordPressClient:
         }
 
     async def get_page(self, page_id: int) -> dict:
-        """Get page by ID."""
         response = await self.client.get(f"{self.api_url}/pages/{page_id}")
         response.raise_for_status()
         p = response.json()
@@ -58,7 +52,6 @@ class WordPressClient:
         }
 
     async def create_page(self, title: str, content: str, **kwargs) -> dict:
-        """Create new page."""
         data = {"title": title, "content": content, **kwargs}
         response = await self.client.post(f"{self.api_url}/pages", json=data)
         response.raise_for_status()
@@ -66,14 +59,12 @@ class WordPressClient:
         return {"id": p["id"], "link": p["link"], "status": p["status"]}
 
     async def update_page(self, page_id: int, **kwargs) -> dict:
-        """Update existing page."""
         response = await self.client.post(f"{self.api_url}/pages/{page_id}", json=kwargs)
         response.raise_for_status()
         p = response.json()
         return {"id": p["id"], "link": p["link"]}
 
     async def delete_page(self, page_id: int, force: bool = True) -> dict:
-        """Delete page."""
         response = await self.client.delete(
             f"{self.api_url}/pages/{page_id}",
             params={"force": "true" if force else "false"},
@@ -82,7 +73,6 @@ class WordPressClient:
         return {"id": page_id, "deleted": True}
 
     async def list_posts(self, **kwargs) -> dict:
-        """List site posts."""
         response = await self.client.get(f"{self.api_url}/posts", params=kwargs)
         response.raise_for_status()
         return {
@@ -94,7 +84,6 @@ class WordPressClient:
         }
 
     async def create_post(self, title: str, content: str, **kwargs) -> dict:
-        """Create new post."""
         data = {"title": title, "content": content, **kwargs}
         response = await self.client.post(f"{self.api_url}/posts", json=data)
         response.raise_for_status()
@@ -102,7 +91,6 @@ class WordPressClient:
         return {"id": p["id"], "link": p["link"], "status": p["status"]}
 
     async def delete_post(self, post_id: int, force: bool = True) -> dict:
-        """Delete post."""
         response = await self.client.delete(
             f"{self.api_url}/posts/{post_id}",
             params={"force": "true" if force else "false"},
@@ -111,7 +99,6 @@ class WordPressClient:
         return {"id": post_id, "deleted": True}
 
     async def upload_media(self, file_path: str, title: Optional[str] = None) -> dict:
-        """Upload file to media library."""
         p = Path(file_path)
         mime = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
         headers = {
@@ -129,7 +116,6 @@ class WordPressClient:
         return {"id": m["id"], "url": m["source_url"]}
 
     async def get_acf_fields(self, post_id: int, post_type: str = "pages") -> dict:
-        """Get ACF fields for a page or post."""
         response = await self.client.get(f"{self.api_url}/{post_type}/{post_id}")
         response.raise_for_status()
         data = response.json()
@@ -140,7 +126,6 @@ class WordPressClient:
         }
 
     async def update_acf_fields(self, post_id: int, fields: dict, post_type: str = "pages") -> dict:
-        """Update ACF fields on a page or post."""
         payload = {"acf": fields}
         response = await self.client.post(f"{self.api_url}/{post_type}/{post_id}", json=payload)
         response.raise_for_status()
@@ -151,11 +136,6 @@ class WordPressClient:
         }
 
     async def list_acf_field_groups(self) -> dict:
-        """List all ACF field groups (requires ACF Pro REST API support).
-
-        Falls back to a basic approach if the ACF Pro API endpoint is unavailable.
-        """
-        # ACF Pro exposes field groups at /wp-json/acf/v3/
         try:
             response = await self.client.get(f"{self.base_url}/wp-json/acf/v3/field-groups")
             if response.is_success:
@@ -172,11 +152,7 @@ class WordPressClient:
                     ]
                 }
         except Exception:
-            # ACF endpoint may not be available if ACF is not installed or REST API is disabled
-            # This is expected behavior, not an error
             pass
-
-        # Fallback: try /wp-json/acf/v3/options or return helpful message
         return {
             "field_groups": [],
             "note": "ACF field group listing requires ACF Pro with REST API enabled. "
@@ -184,7 +160,6 @@ class WordPressClient:
         }
 
     async def list_themes(self) -> dict:
-        """List installed themes."""
         response = await self.client.get(f"{self.api_url}/themes")
         response.raise_for_status()
         themes = response.json()
@@ -202,7 +177,6 @@ class WordPressClient:
         }
 
     async def get_active_theme(self) -> dict:
-        """Get the currently active theme details."""
         response = await self.client.get(f"{self.api_url}/themes", params={"status": "active"})
         response.raise_for_status()
         themes = response.json()
@@ -218,19 +192,12 @@ class WordPressClient:
         return {"error": "No active theme found."}
 
     async def create_theme_file(self, theme_slug: str, file_path: str, content: str) -> dict:
-        """Create or overwrite a file inside a WP theme."""
-        # WordPress doesn't have a native REST API for writing theme files.
-        # We use the theme-edit endpoint (WP 5.9+) which edits theme code.
         endpoint = f"{self.base_url}/wp-json/wp/v2/themes/{theme_slug}"
-
-        # First, try the block-based theme file editing API
         payload = {
             "file": file_path,
             "content": content,
         }
         response = await self.client.post(endpoint, json=payload)
-
-        # If the standard endpoint fails, return fallback message
         if response.is_error:
             return {
                 "status": "fallback_needed",
@@ -244,7 +211,6 @@ class WordPressClient:
                 ),
                 "content_preview": content[:500],
             }
-
         return {
             "status": "success",
             "theme_slug": theme_slug,
@@ -253,16 +219,13 @@ class WordPressClient:
         }
 
     async def read_theme_file(self, theme_slug: str, file_path: str) -> dict:
-        """Read a theme file's content."""
         endpoint = f"{self.base_url}/wp-json/wp/v2/themes/{theme_slug}"
         response = await self.client.get(endpoint, params={"file": file_path})
-
         if response.is_error:
             return {
                 "error": f"Could not read theme file '{file_path}' from '{theme_slug}'. "
                 f"Status: {response.status_code}",
             }
-
         data = response.json()
         return {
             "theme_slug": theme_slug,
@@ -271,14 +234,12 @@ class WordPressClient:
         }
 
     async def activate_theme(self, theme_slug: str) -> dict:
-        """Activate a theme by its slug."""
         response = await self.client.post(
             f"{self.api_url}/themes/{theme_slug}",
             json={"status": "active"},
         )
         if response.is_error:
             _raise_for_status(response)
-
         return {
             "theme_slug": theme_slug,
             "status": "active",

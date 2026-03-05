@@ -24,6 +24,7 @@ from app.services.conversation import (
     list_conversations,
     soft_delete_conversation,
 )
+from app.agent.tools import set_wp_cli_context
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,11 @@ async def chat(
         )
     
     try:
+        set_wp_cli_context(
+            wp_path=request.wp_cli_wp_path,
+            default_url=request.wp_cli_default_url,
+        )
+
         # 1. Resolve / create conversation using authenticated user's email
         convo = await get_or_create_conversation(
             db,

@@ -152,3 +152,11 @@ class ReadThemeFileInput(BaseModel):
 
 class ActivateThemeInput(BaseModel):
     theme_slug: str = Field(description="Theme directory slug")
+
+
+class WpCliActivateThemeInput(BaseModel):
+    theme_slug: str = Field(description="Theme directory slug")
+
+
+class WpCliListThemesInput(BaseModel):
+    pass

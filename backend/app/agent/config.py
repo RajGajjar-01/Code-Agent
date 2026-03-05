@@ -88,6 +88,24 @@ class AgentConfig(BaseSettings):
         validation_alias=AliasChoices("CHECKPOINT_DB_PATH", "AGENT_CHECKPOINT_DB_PATH"),
     )
 
+    # WP-CLI
+    wp_cli_path: str = Field(
+        default="wp",
+        validation_alias=AliasChoices("WP_CLI_PATH", "AGENT_WP_CLI_PATH"),
+    )
+    wp_cli_wp_path: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("WP_CLI_WP_PATH", "AGENT_WP_CLI_WP_PATH"),
+    )
+    wp_cli_default_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("WP_CLI_DEFAULT_URL", "AGENT_WP_CLI_DEFAULT_URL"),
+    )
+    wp_cli_allow_root: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("WP_CLI_ALLOW_ROOT", "AGENT_WP_CLI_ALLOW_ROOT"),
+    )
+
     model_config = {
         "case_sensitive": False,
     }

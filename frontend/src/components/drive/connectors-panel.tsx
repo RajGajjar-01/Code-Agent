@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { LogOut, FolderOpen, Loader2, ChevronRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DriveFileList } from '@/components/drive/drive-file-list'
@@ -7,6 +7,8 @@ import { useSidebarStore } from '@/stores/sidebar-store'
 import { useChatStore } from '@/stores/chat-store'
 import { authApi } from '@/lib/axios'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
+import { useSettingsStore } from '@/stores/settings-store'
 import driveLogo from '@/assets/google-drive.svg'
 
 export function ConnectorsPanel() {
@@ -26,6 +28,9 @@ export function ConnectorsPanel() {
 
     const { connectorsPanelOpen, toggleConnectorsPanel } = useSidebarStore()
     const { loadConversations } = useChatStore()
+
+    const { wpCliWpPath, setWpCliWpPath, wpCliDefaultUrl, setWpCliDefaultUrl } = useSettingsStore()
+    const [wpCliOpen, setWpCliOpen] = useState(false)
 
     useEffect(() => {
         checkAuthStatus()
@@ -112,6 +117,60 @@ export function ConnectorsPanel() {
                             </>
                         )}
                     </div>
+                </div>
+
+                <div className="bg-background border border-sidebar-border rounded-lg p-4 shadow-sm transition-all hover:border-primary/50 group overflow-hidden">
+                    <div className="flex justify-between items-start gap-2 mb-4 min-w-0">
+                        <div className="flex-1 min-w-0 text-left">
+                            <h4 className="text-[0.9rem] font-bold text-foreground truncate">WP-CLI</h4>
+                            <p className="text-[0.75rem] text-muted-foreground mt-0.5 break-words">
+                                Configure local WordPress path for WP-CLI tools.
+                            </p>
+                        </div>
+                        <div className="w-11 h-11 flex items-center justify-center bg-secondary rounded-md shrink-0">
+                            <span className="text-[0.9rem] font-bold text-foreground">WP</span>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 w-full min-w-0">
+                        <Button
+                            variant={wpCliOpen ? 'outline' : 'default'}
+                            className={cn(
+                                'flex-1 h-9 rounded-lg text-[0.8rem] font-bold truncate',
+                                wpCliOpen ? 'border-primary text-primary bg-primary/5 hover:bg-primary hover:text-white' : '',
+                            )}
+                            onClick={() => setWpCliOpen((v) => !v)}
+                        >
+                            Configure
+                        </Button>
+                    </div>
+
+                    {wpCliOpen && (
+                        <div className="mt-4 space-y-3">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-foreground">WP filesystem path</label>
+                                <Input
+                                    placeholder="/var/www/html"
+                                    value={wpCliWpPath}
+                                    onChange={(e) => setWpCliWpPath(e.target.value)}
+                                    className="h-9"
+                                />
+                                <p className="text-[0.72rem] text-muted-foreground">
+                                    Folder that contains <span className="font-mono">wp-config.php</span>
+                                </p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-foreground">Default site URL (optional)</label>
+                                <Input
+                                    placeholder="https://example.com"
+                                    value={wpCliDefaultUrl}
+                                    onChange={(e) => setWpCliDefaultUrl(e.target.value)}
+                                    className="h-9"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {isConnected && (

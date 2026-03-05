@@ -20,6 +20,8 @@ class ChatRequest(BaseModel):
     user_email: Optional[str] = "anonymous"
     llm_provider: Optional[str] = None  # groq, glm5, or gemini
     attachments: Optional[list["AttachmentRef"]] = None
+    wp_cli_wp_path: Optional[str] = None
+    wp_cli_default_url: Optional[str] = None
 
 
 class AttachmentRef(BaseModel):

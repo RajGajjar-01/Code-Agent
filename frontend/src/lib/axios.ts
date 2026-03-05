@@ -88,6 +88,8 @@ export const chatApi = {
         userEmail: string,
         llmProvider?: string,
         attachments?: AttachmentRef[],
+        wpCliWpPath?: string,
+        wpCliDefaultUrl?: string,
     ) {
         if (!userEmail) {
             throw new Error('Authentication required. Please log in to send messages.')
@@ -98,6 +100,8 @@ export const chatApi = {
             user_email: userEmail,
             llm_provider: llmProvider,
             attachments,
+            wp_cli_wp_path: wpCliWpPath || undefined,
+            wp_cli_default_url: wpCliDefaultUrl || undefined,
         })
     },
 

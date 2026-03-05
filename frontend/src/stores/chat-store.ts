@@ -88,7 +88,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }
         
         const { conversationId } = get()
-        const llmProvider = useSettingsStore.getState().llmProvider
+        const { llmProvider, wpCliWpPath, wpCliDefaultUrl } = useSettingsStore.getState()
 
         let attachments: AttachmentRef[] | undefined
 
@@ -110,7 +110,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 })
             }
 
-            const { data } = await chatApi.send(text, conversationId, email, llmProvider, attachments)
+            const { data } = await chatApi.send(
+                text,
+                conversationId,
+                email,
+                llmProvider,
+                attachments,
+                wpCliWpPath,
+                wpCliDefaultUrl,
+            )
 
             // Track new conversation
             if (data.conversation_id && !conversationId) {

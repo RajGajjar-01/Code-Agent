@@ -1,7 +1,11 @@
+import asyncio
+import json
+from pathlib import Path
 from typing import Any, Optional
 
 from langchain_core.tools import StructuredTool
 
+from app.agent.config import get_agent_config
 from app.agent.tools_schema import (
     ActivateThemeInput,
     BulkDeletePagesInput,
@@ -34,15 +38,25 @@ from app.agent.tools_schema import (
     UpdatePostInput,
     UpdateSettingsInput,
     UploadMediaInput,
- )
+    WpCliActivateThemeInput,
+    WpCliListThemesInput,
+)
 
 _wp_client: Optional[Any] = None
+_wp_cli_wp_path_override: str | None = None
+_wp_cli_default_url_override: str | None = None
 
 
 def set_wp_client(client: Any) -> None:
     """Set the global WP client for tool functions."""
     global _wp_client
     _wp_client = client
+
+
+def set_wp_cli_context(wp_path: str | None = None, default_url: str | None = None) -> None:
+    global _wp_cli_wp_path_override, _wp_cli_default_url_override
+    _wp_cli_wp_path_override = wp_path
+    _wp_cli_default_url_override = default_url
 
 
 def _client():
@@ -52,6 +66,59 @@ def _client():
             "and WP_APP_PASSWORD in .env"
         )
     return _wp_client
+
+
+def _get_wp_cli_args() -> tuple[str, list[str]]:
+    config = get_agent_config()
+    wp_bin = config.wp_cli_path
+
+    wp_path = _wp_cli_wp_path_override or config.wp_cli_wp_path
+    if not wp_path:
+        raise RuntimeError(
+            "WP-CLI path not configured. Provide WP_CLI_WP_PATH (path containing wp-config.php)."
+        )
+
+    wp_path_obj = Path(wp_path)
+    if not (wp_path_obj / "wp-config.php").exists():
+        raise RuntimeError(
+            f"Invalid WP_CLI_WP_PATH: wp-config.php not found at {wp_path_obj}"
+        )
+
+    args: list[str] = [f"--path={str(wp_path_obj)}"]
+
+    default_url = _wp_cli_default_url_override or config.wp_cli_default_url
+    if default_url:
+        args.append(f"--url={default_url}")
+
+    if config.wp_cli_allow_root:
+        args.append("--allow-root")
+
+    return wp_bin, args
+
+
+async def _run_wp_cli(command: list[str]) -> dict:
+    wp_bin, base_args = _get_wp_cli_args()
+    full_cmd = [wp_bin, *base_args, *command]
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *full_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        raise RuntimeError(
+            "wp binary not found. Install WP-CLI or set WP_CLI_PATH to the wp executable."
+        )
+
+    out_b, err_b = await proc.communicate()
+    out = (out_b or b"").decode("utf-8", errors="replace").strip()
+    err = (err_b or b"").decode("utf-8", errors="replace").strip()
+
+    if proc.returncode != 0:
+        raise RuntimeError(err or out or f"WP-CLI failed (exit_code={proc.returncode})")
+
+    return {"stdout": out, "stderr": err, "command": full_cmd}
 
 
 async def _list_pages(per_page: int = 10, status: str = "publish") -> dict:
@@ -210,6 +277,20 @@ async def _read_theme_file(theme_slug: str, file_path: str) -> dict:
 
 async def _activate_theme(theme_slug: str) -> dict:
     return await _client().activate_theme(theme_slug)
+
+
+async def _wp_cli_list_themes() -> dict:
+    res = await _run_wp_cli(["theme", "list", "--format=json"])
+    try:
+        themes = json.loads(res.get("stdout") or "[]")
+    except Exception:
+        themes = []
+    return {"themes": themes}
+
+
+async def _wp_cli_activate_theme(theme_slug: str) -> dict:
+    await _run_wp_cli(["theme", "activate", theme_slug])
+    return {"status": "activated", "theme_slug": theme_slug}
 
 
 async def _get_site_info() -> dict:
@@ -472,6 +553,22 @@ activate_theme = StructuredTool.from_function(
     coroutine=_activate_theme,
 )
 
+wp_cli_list_themes = StructuredTool.from_function(
+    func=_wp_cli_list_themes,
+    name="wp_cli_list_themes",
+    description="List installed WordPress themes using WP-CLI.",
+    args_schema=WpCliListThemesInput,
+    coroutine=_wp_cli_list_themes,
+)
+
+wp_cli_activate_theme = StructuredTool.from_function(
+    func=_wp_cli_activate_theme,
+    name="wp_cli_activate_theme",
+    description="Activate a WordPress theme using WP-CLI.",
+    args_schema=WpCliActivateThemeInput,
+    coroutine=_wp_cli_activate_theme,
+)
+
 get_site_info = StructuredTool.from_function(
     func=_get_site_info,
     name="get_site_info",
@@ -524,6 +621,8 @@ ALL_TOOLS = [
     create_theme_file,
     read_theme_file,
     activate_theme,
+    wp_cli_list_themes,
+    wp_cli_activate_theme,
     # Site
     get_site_info,
 ]

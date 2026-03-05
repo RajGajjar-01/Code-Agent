@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes import auth, chat, drive
 from app.core.config import settings
 from app.services.wordpress import WordPressClient
+from app.agent.tools import ensure_wp_cli_installed
 
 wp_client: Optional[WordPressClient] = None
 
@@ -16,6 +17,8 @@ wp_client: Optional[WordPressClient] = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global wp_client
+
+    await ensure_wp_cli_installed()
 
     if settings.WP_BASE_URL and settings.WP_USERNAME and settings.WP_APP_PASSWORD:
         wp_client = WordPressClient(

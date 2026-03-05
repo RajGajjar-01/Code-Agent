@@ -5,11 +5,12 @@ import { DriveFileList } from '@/components/drive/drive-file-list'
 import { useAuthStore } from '@/stores/auth-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { useChatStore } from '@/stores/chat-store'
-import { authApi } from '@/lib/axios'
+import { authApi, wpCliApi } from '@/lib/axios'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { useSettingsStore } from '@/stores/settings-store'
 import driveLogo from '@/assets/google-drive.svg'
+import { toast } from 'sonner'
 
 export function ConnectorsPanel() {
     const {
@@ -31,6 +32,10 @@ export function ConnectorsPanel() {
 
     const { wpCliWpPath, setWpCliWpPath, wpCliDefaultUrl, setWpCliDefaultUrl } = useSettingsStore()
     const [wpCliOpen, setWpCliOpen] = useState(false)
+    const [wpCliValidating, setWpCliValidating] = useState(false)
+    const [wpCliValidated, setWpCliValidated] = useState(false)
+
+    const wpCliPathTrimmed = (wpCliWpPath || '').trim()
 
     useEffect(() => {
         checkAuthStatus()
@@ -139,9 +144,42 @@ export function ConnectorsPanel() {
                                 'flex-1 h-9 rounded-lg text-[0.8rem] font-bold truncate',
                                 wpCliOpen ? 'border-primary text-primary bg-primary/5 hover:bg-primary hover:text-white' : '',
                             )}
-                            onClick={() => setWpCliOpen((v) => !v)}
+                            disabled={wpCliValidating}
+                            onClick={async () => {
+                                if (!wpCliOpen) {
+                                    setWpCliOpen(true)
+                                    return
+                                }
+
+                                if (!wpCliPathTrimmed) {
+                                    toast.error('Please enter the WP filesystem path first')
+                                    return
+                                }
+
+                                setWpCliValidating(true)
+                                try {
+                                    const { data } = await wpCliApi.validatePath(wpCliPathTrimmed)
+                                    if (data.valid) {
+                                        setWpCliValidated(true)
+                                        toast.success(data.detail || 'WP-CLI configured')
+                                        setWpCliOpen(false)
+                                    } else {
+                                        setWpCliValidated(false)
+                                        toast.error(data.detail || 'Invalid WordPress folder')
+                                    }
+                                } catch (e) {
+                                    setWpCliValidated(false)
+                                    toast.error('Validation failed. Make sure the backend is running.')
+                                } finally {
+                                    setWpCliValidating(false)
+                                }
+                            }}
                         >
-                            Configure
+                            {wpCliValidating
+                                ? 'Validating...'
+                                : wpCliOpen
+                                    ? (wpCliPathTrimmed ? 'Validate' : 'Connect')
+                                    : (wpCliValidated ? 'Connected' : 'Configure')}
                         </Button>
                     </div>
 
@@ -152,7 +190,10 @@ export function ConnectorsPanel() {
                                 <Input
                                     placeholder="/var/www/html"
                                     value={wpCliWpPath}
-                                    onChange={(e) => setWpCliWpPath(e.target.value)}
+                                    onChange={(e) => {
+                                        setWpCliValidated(false)
+                                        setWpCliWpPath(e.target.value)
+                                    }}
                                     className="h-9"
                                 />
                                 <p className="text-[0.72rem] text-muted-foreground">

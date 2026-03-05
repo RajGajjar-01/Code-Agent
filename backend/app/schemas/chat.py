@@ -46,6 +46,15 @@ class ScrapeRequest(BaseModel):
     output_dir: Optional[str] = None
 
 
+class WpCliValidateRequest(BaseModel):
+    wp_cli_wp_path: str
+
+
+class WpCliValidateResponse(BaseModel):
+    valid: bool
+    detail: str
+
+
 class MessageOut(BaseModel):
     """Single message row returned to the client."""
 

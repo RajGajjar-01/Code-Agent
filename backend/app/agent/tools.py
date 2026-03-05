@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 
@@ -45,6 +47,58 @@ from app.agent.tools_schema import (
 _wp_client: Optional[Any] = None
 _wp_cli_wp_path_override: str | None = None
 _wp_cli_default_url_override: str | None = None
+_wp_cli_install_lock: asyncio.Lock | None = None
+
+
+def _get_wp_cli_install_lock() -> asyncio.Lock:
+    global _wp_cli_install_lock
+    if _wp_cli_install_lock is None:
+        _wp_cli_install_lock = asyncio.Lock()
+    return _wp_cli_install_lock
+
+
+def _backend_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _default_local_wp_cli_path() -> Path:
+    return _backend_root() / "bin" / "wp"
+
+
+def _download_wp_cli_to(target_path: Path) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    url = "https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar"
+    tmp_path = target_path.with_suffix(".tmp")
+    urllib.request.urlretrieve(url, tmp_path)  # noqa: S310
+    os.replace(tmp_path, target_path)
+    os.chmod(target_path, 0o755)
+
+
+async def ensure_wp_cli_installed() -> str | None:
+    """Ensure WP-CLI is available if auto-install is enabled.
+
+    Returns the local wp binary path if installed/available, else None.
+    """
+    config = get_agent_config()
+    if not config.wp_cli_auto_install:
+        return None
+
+    # If user explicitly provided a path and it exists, respect it.
+    if config.wp_cli_path and config.wp_cli_path != "wp":
+        wp_path = Path(config.wp_cli_path)
+        if wp_path.exists():
+            return str(wp_path)
+
+    local_path = _default_local_wp_cli_path()
+    if local_path.exists():
+        return str(local_path)
+
+    lock = _get_wp_cli_install_lock()
+    async with lock:
+        if local_path.exists():
+            return str(local_path)
+        await asyncio.to_thread(_download_wp_cli_to, local_path)
+        return str(local_path)
 
 
 def set_wp_client(client: Any) -> None:
@@ -71,6 +125,12 @@ def _client():
 def _get_wp_cli_args() -> tuple[str, list[str]]:
     config = get_agent_config()
     wp_bin = config.wp_cli_path
+
+    if config.wp_cli_auto_install:
+        local_path = _default_local_wp_cli_path()
+        if wp_bin == "wp" or (wp_bin and wp_bin != "wp" and not Path(wp_bin).exists()):
+            if local_path.exists():
+                wp_bin = str(local_path)
 
     wp_path = _wp_cli_wp_path_override or config.wp_cli_wp_path
     if not wp_path:
@@ -107,6 +167,28 @@ async def _run_wp_cli(command: list[str]) -> dict:
             stderr=asyncio.subprocess.PIPE,
         )
     except FileNotFoundError:
+        config = get_agent_config()
+        if config.wp_cli_auto_install:
+            installed_path = await ensure_wp_cli_installed()
+            if installed_path:
+                wp_bin2, base_args2 = _get_wp_cli_args()
+                full_cmd2 = [wp_bin2, *base_args2, *command]
+                proc = await asyncio.create_subprocess_exec(
+                    *full_cmd2,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                out_b, err_b = await proc.communicate()
+                out = (out_b or b"").decode("utf-8", errors="replace").strip()
+                err = (err_b or b"").decode("utf-8", errors="replace").strip()
+
+                if proc.returncode != 0:
+                    raise RuntimeError(
+                        err or out or f"WP-CLI failed (exit_code={proc.returncode})"
+                    )
+
+                return {"stdout": out, "stderr": err, "command": full_cmd2}
+
         raise RuntimeError(
             "wp binary not found. Install WP-CLI or set WP_CLI_PATH to the wp executable."
         )

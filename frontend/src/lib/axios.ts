@@ -18,6 +18,14 @@ export const setAccessToken = (token: string | null) => {
     accessToken = token
 }
 
+export const wpCliApi = {
+    validatePath(wpCliWpPath: string) {
+        return api.post<{ valid: boolean; detail: string }>('/api/wp-cli/validate', {
+            wp_cli_wp_path: wpCliWpPath,
+        })
+    },
+}
+
 export const getAccessToken = () => accessToken
 
 api.interceptors.request.use(

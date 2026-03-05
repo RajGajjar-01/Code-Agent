@@ -105,6 +105,10 @@ class AgentConfig(BaseSettings):
         default=False,
         validation_alias=AliasChoices("WP_CLI_ALLOW_ROOT", "AGENT_WP_CLI_ALLOW_ROOT"),
     )
+    wp_cli_auto_install: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("WP_CLI_AUTO_INSTALL", "AGENT_WP_CLI_AUTO_INSTALL"),
+    )
 
     model_config = {
         "case_sensitive": False,

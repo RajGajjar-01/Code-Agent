@@ -15,6 +15,8 @@ from app.schemas.chat import (
     ConversationDetail,
     ConversationOut,
     MessageOut,
+    WpCliValidateRequest,
+    WpCliValidateResponse,
 )
 from app.services.chat import process_chat
 from app.services.conversation import (
@@ -36,6 +38,28 @@ wp_client = None
 _UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "chat"
 _MAX_FILES_PER_MESSAGE = 5
 _MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+
+
+@router.post("/api/wp-cli/validate", response_model=WpCliValidateResponse)
+async def validate_wp_cli_path(
+    request: WpCliValidateRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    wp_path = (request.wp_cli_wp_path or "").strip()
+    if not wp_path:
+        return WpCliValidateResponse(valid=False, detail="WP filesystem path is required")
+
+    wp_path_obj = Path(wp_path)
+    if not wp_path_obj.exists() or not wp_path_obj.is_dir():
+        return WpCliValidateResponse(valid=False, detail="Path does not exist or is not a folder")
+
+    if not (wp_path_obj / "wp-config.php").exists():
+        return WpCliValidateResponse(
+            valid=False,
+            detail="wp-config.php not found in this folder",
+        )
+
+    return WpCliValidateResponse(valid=True, detail="Valid WordPress folder")
 
 
 @router.post("/api/chat/attachments", response_model=list[AttachmentRef])

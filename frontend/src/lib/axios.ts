@@ -4,6 +4,7 @@ import type {
     ChatResponse,
     DriveResponse,
     AttachmentRef,
+    WordPressSite,
 } from '@/types'
 
 const api = axios.create({
@@ -16,6 +17,20 @@ let accessToken: string | null = null
 
 export const setAccessToken = (token: string | null) => {
     accessToken = token
+}
+
+export const wpSitesApi = {
+    list() {
+        return api.get<WordPressSite[]>('/api/wp-sites')
+    },
+
+    create(payload: { name?: string | null; base_url: string; username: string; app_password: string }) {
+        return api.post<WordPressSite>('/api/wp-sites', payload)
+    },
+
+    remove(id: number) {
+        return api.delete(`/api/wp-sites/${id}`)
+    },
 }
 
 export const wpCliApi = {
@@ -98,6 +113,7 @@ export const chatApi = {
         attachments?: AttachmentRef[],
         wpCliWpPath?: string,
         wpCliDefaultUrl?: string,
+        wpSiteId?: number | null,
     ) {
         if (!userEmail) {
             throw new Error('Authentication required. Please log in to send messages.')
@@ -110,6 +126,7 @@ export const chatApi = {
             attachments,
             wp_cli_wp_path: wpCliWpPath || undefined,
             wp_cli_default_url: wpCliDefaultUrl || undefined,
+            wp_site_id: wpSiteId ?? undefined,
         })
     },
 

@@ -63,6 +63,13 @@ Step 2: get_acf_fields(post_id)   → read current field names and values
 Step 3: update_acf_fields(...)    → use EXACT field names from Step 2. Never guess.
 </acf_workflow>
 
+<wp_cli_workflow>
+- If the user asks to list themes or activate a theme AND a WordPress filesystem path is available (wp_cli_wp_path), prefer WP-CLI tools.
+- Use wp_cli_list_themes to discover theme slugs.
+- Use wp_cli_activate_theme with the theme slug to activate.
+- Do NOT claim WP-CLI can be used unless you can actually call a WP-CLI tool successfully.
+</wp_cli_workflow>
+
 <error_handling>
 On tool error:
 1. Explain what failed in plain English.

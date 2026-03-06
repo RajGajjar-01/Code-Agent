@@ -1,36 +1,20 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, chat, drive
+from app.api.routes import auth, chat, drive, menus, wp_sites
 from app.core.config import settings
-from app.services.wordpress import WordPressClient
 from app.agent.tools import ensure_wp_cli_installed
-
-wp_client: Optional[WordPressClient] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global wp_client
-
     await ensure_wp_cli_installed()
 
-    if settings.WP_BASE_URL and settings.WP_USERNAME and settings.WP_APP_PASSWORD:
-        wp_client = WordPressClient(
-            settings.WP_BASE_URL, settings.WP_USERNAME, settings.WP_APP_PASSWORD
-        )
-
-    chat.wp_client = wp_client
-
     yield
-
-    if wp_client:
-        await wp_client.close()
 
 
 app = FastAPI(
@@ -57,6 +41,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(drive.router)
 app.include_router(chat.router)
+app.include_router(menus.router)
+app.include_router(wp_sites.router)
 
 
 @app.get("/health")
@@ -64,6 +50,6 @@ async def health():
     return {
         "status": "running",
         "groq": bool(settings.GROQ_API_KEY),
-        "wp": bool(wp_client),
+        "wp": True,
         "google_oauth": bool(settings.GOOGLE_CLIENT_ID),
     }

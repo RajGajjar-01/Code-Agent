@@ -3,11 +3,15 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.api.dependencies import get_current_active_user
+from app.core.crypto import maybe_decrypt_secret
+from app.core.database import get_db
+from app.agent.tools import set_wp_cli_context
 from app.models.user import User
+from app.models.wordpress_site import WordPressSite
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -26,7 +30,7 @@ from app.services.conversation import (
     list_conversations,
     soft_delete_conversation,
 )
-from app.agent.tools import set_wp_cli_context
+from app.services.wordpress import WordPressClient
 
 logger = logging.getLogger(__name__)
 
@@ -134,11 +138,49 @@ async def chat(
             detail="Cannot send messages as another user"
         )
     
+    wp_for_request = None
+    created_client: WordPressClient | None = None
+
     try:
         set_wp_cli_context(
             wp_path=request.wp_cli_wp_path,
             default_url=request.wp_cli_default_url,
         )
+
+        if request.wp_site_id is not None:
+            res = await db.execute(
+                select(WordPressSite).where(
+                    WordPressSite.id == request.wp_site_id,
+                    WordPressSite.user_id == current_user.id,
+                )
+            )
+            site = res.scalar_one_or_none()
+            if not site:
+                raise HTTPException(status_code=404, detail="WordPress site not found")
+
+            app_password = maybe_decrypt_secret(site.app_password_encrypted)
+            created_client = WordPressClient(site.base_url, site.username, app_password)
+            wp_for_request = created_client
+
+        if wp_for_request is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No WordPress site selected. Connect a site and set it as Active, then retry.",
+            )
+
+        # Fast connectivity/auth check: do not invoke the agent if the selected site is unreachable.
+        try:
+            resp = await wp_for_request.client.get(f"{wp_for_request.base_url}/wp-json", timeout=5.0)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Selected WordPress site is not reachable/active. Please verify the site URL and that it is running, then try again.",
+            )
+        if resp.status_code >= 400:
+            raise HTTPException(
+                status_code=400,
+                detail="Selected WordPress site is not reachable/active or credentials are invalid. Please verify the site URL and application password, then try again.",
+            )
 
         # 1. Resolve / create conversation using authenticated user's email
         convo = await get_or_create_conversation(
@@ -169,7 +211,7 @@ async def chat(
         result = await process_chat(
             message=message_for_agent,
             history=history,
-            wp_client=wp_client,
+            wp_client=wp_for_request,
             llm_provider=request.llm_provider,
         )
 
@@ -191,9 +233,20 @@ async def chat(
             conversation_id=str(convo.id),
         )
 
+    except HTTPException:
+        await db.rollback()
+        raise
+
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        if created_client:
+            try:
+                await created_client.close()
+            except Exception:
+                pass
 
 
 @router.get("/api/conversations", response_model=list[ConversationOut])

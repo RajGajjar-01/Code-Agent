@@ -128,6 +128,49 @@ class BulkUploadMediaInput(BaseModel):
     concurrency: int = Field(default=3, description="Parallel uploads")
 
 
+class ListMenusInput(BaseModel):
+    per_page: int = Field(default=100, description="Number of menus per request")
+
+
+class CreateMenuInput(BaseModel):
+    name: str = Field(description="Menu name")
+
+
+class DeleteMenuInput(BaseModel):
+    menu_id: int = Field(description="Menu ID")
+    force: bool = Field(default=True, description="Bypass trash")
+
+
+class ListMenuItemsInput(BaseModel):
+    menu_id: Optional[int] = Field(default=None, description="Optional menu ID filter")
+    per_page: int = Field(default=100, description="Items per page")
+
+
+class CreateMenuItemInput(BaseModel):
+    menu_id: int = Field(description="Menu ID")
+    title: str = Field(description="Menu item title")
+    type: str = Field(default="custom", description="Menu item type")
+    url: Optional[str] = Field(default=None, description="URL for custom link")
+    object_id: Optional[int] = Field(default=None, description="Linked object ID")
+    object: Optional[str] = Field(default=None, description="Linked object type")
+    parent: Optional[int] = Field(default=0, description="Parent menu item ID")
+    menu_order: Optional[int] = Field(default=None, description="Menu order")
+    status: str = Field(default="publish", description="publish or draft")
+
+
+class BulkCreateMenusInput(BaseModel):
+    menus: list[dict] = Field(description="List of menus, each containing at least {name}")
+
+
+class BulkCreateMenuItemsInput(BaseModel):
+    items: list[dict] = Field(description="List of menu-item payloads")
+
+
+class CreateMenuTreeInput(BaseModel):
+    menu_name: str = Field(description="Menu name")
+    items: list[dict] = Field(description="Tree items, each item may include children")
+
+
 class GetAcfFieldsInput(BaseModel):
     post_id: int = Field(description="WordPress post/page ID")
     post_type: str = Field(default="pages", description="'pages' or 'posts'")
@@ -160,3 +203,12 @@ class WpCliActivateThemeInput(BaseModel):
 
 class WpCliListThemesInput(BaseModel):
     pass
+
+
+class ListMenuLocationsInput(BaseModel):
+    pass
+
+
+class AssignMenuLocationsInput(BaseModel):
+    menu_id: int = Field(description="Menu term ID")
+    locations: list[str] = Field(description="List of theme menu location slugs")

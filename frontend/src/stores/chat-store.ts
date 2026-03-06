@@ -88,7 +88,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }
         
         const { conversationId } = get()
-        const { llmProvider, wpCliWpPath, wpCliDefaultUrl } = useSettingsStore.getState()
+        const { llmProvider, wpCliWpPath, wpCliDefaultUrl, activeWpSiteId } = useSettingsStore.getState()
 
         let attachments: AttachmentRef[] | undefined
 
@@ -118,6 +118,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 attachments,
                 wpCliWpPath,
                 wpCliDefaultUrl,
+                activeWpSiteId,
             )
 
             // Track new conversation

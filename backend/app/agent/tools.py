@@ -15,11 +15,17 @@ from app.agent.tools_schema import (
     BulkUpdatePagesInput,
     BulkUpdatePostsInput,
     BulkUploadMediaInput,
+    BulkCreateMenuItemsInput,
+    BulkCreateMenusInput,
     CreateCategoryInput,
+    CreateMenuInput,
+    CreateMenuItemInput,
+    CreateMenuTreeInput,
     CreatePageInput,
     CreatePostInput,
     CreateTagInput,
     CreateThemeFileInput,
+    DeleteMenuInput,
     DeleteMediaInput,
     DeletePageInput,
     DeletePostInput,
@@ -30,6 +36,8 @@ from app.agent.tools_schema import (
     GetPostInput,
     ListCategoriesInput,
     ListMediaInput,
+    ListMenuItemsInput,
+    ListMenusInput,
     ListPagesInput,
     ListPostsInput,
     ListTagsInput,
@@ -42,6 +50,8 @@ from app.agent.tools_schema import (
     UploadMediaInput,
     WpCliActivateThemeInput,
     WpCliListThemesInput,
+    ListMenuLocationsInput,
+    AssignMenuLocationsInput,
 )
 
 _wp_client: Optional[Any] = None
@@ -116,8 +126,7 @@ def set_wp_cli_context(wp_path: str | None = None, default_url: str | None = Non
 def _client():
     if not _wp_client:
         raise RuntimeError(
-            "WordPress client not configured. Check WP_BASE_URL, WP_USERNAME, "
-            "and WP_APP_PASSWORD in .env"
+            "WordPress client not configured. Select an active WordPress site (wp_site_id) and retry."
         )
     return _wp_client
 
@@ -126,8 +135,13 @@ def _get_wp_cli_args() -> tuple[str, list[str]]:
     config = get_agent_config()
     wp_bin = config.wp_cli_path
 
+    # Prefer a vendored WP-CLI binary if present. This makes local/dev setups
+    # work even if PATH doesn't contain `wp` and env vars aren't configured.
+    local_path = _default_local_wp_cli_path()
+    if wp_bin == "wp" and local_path.exists():
+        wp_bin = str(local_path)
+
     if config.wp_cli_auto_install:
-        local_path = _default_local_wp_cli_path()
         if wp_bin == "wp" or (wp_bin and wp_bin != "wp" and not Path(wp_bin).exists()):
             if local_path.exists():
                 wp_bin = str(local_path)
@@ -375,8 +389,73 @@ async def _wp_cli_activate_theme(theme_slug: str) -> dict:
     return {"status": "activated", "theme_slug": theme_slug}
 
 
+async def _list_menu_locations() -> dict:
+    return await _client().list_menu_locations()
+
+
+async def _assign_menu_locations(menu_id: int, locations: list[str]) -> dict:
+    return await _client().assign_menu_locations(menu_id=menu_id, locations=locations)
+
+
 async def _get_site_info() -> dict:
     return await _client().get_site_info()
+
+
+async def _list_menus(per_page: int = 100) -> dict:
+    per_page = min(max(per_page, 1), 100)
+    return await _client().list_menus(per_page=per_page)
+
+
+async def _create_menu(name: str) -> dict:
+    return await _client().create_menu(name=name)
+
+
+async def _delete_menu(menu_id: int, force: bool = True) -> dict:
+    return await _client().delete_menu(menu_id, force=force)
+
+
+async def _list_menu_items(menu_id: int | None = None, per_page: int = 100) -> dict:
+    per_page = min(max(per_page, 1), 100)
+    params: dict[str, Any] = {"per_page": per_page}
+    if menu_id is not None:
+        params["menus"] = menu_id
+    return await _client().list_menu_items(**params)
+
+
+async def _create_menu_item(
+    menu_id: int,
+    title: str,
+    type: str = "custom",
+    url: str | None = None,
+    object_id: int | None = None,
+    object: str | None = None,
+    parent: int | None = 0,
+    menu_order: int | None = None,
+    status: str = "publish",
+) -> dict:
+    return await _client().create_menu_item(
+        menu_id=menu_id,
+        title=title,
+        type=type,
+        url=url,
+        object_id=object_id,
+        object=object,
+        parent=parent,
+        menu_order=menu_order,
+        status=status,
+    )
+
+
+async def _bulk_create_menus(menus: list[dict]) -> dict:
+    return await _client().bulk_create_menus(menus)
+
+
+async def _bulk_create_menu_items(items: list[dict]) -> dict:
+    return await _client().bulk_create_menu_items(items)
+
+
+async def _create_menu_tree(menu_name: str, items: list[dict]) -> dict:
+    return await _client().bulk_create_menu_tree(menu_name=menu_name, items=items)
 
 
 list_pages = StructuredTool.from_function(
@@ -651,11 +730,85 @@ wp_cli_activate_theme = StructuredTool.from_function(
     coroutine=_wp_cli_activate_theme,
 )
 
+list_menu_locations = StructuredTool.from_function(
+    func=_list_menu_locations,
+    name="list_menu_locations",
+    description="List theme menu locations (REST: /wp/v2/menu-locations).",
+    args_schema=ListMenuLocationsInput,
+    coroutine=_list_menu_locations,
+)
+
+assign_menu_locations = StructuredTool.from_function(
+    func=_assign_menu_locations,
+    name="assign_menu_locations",
+    description="Assign a menu to one or more theme menu locations (REST: update /wp/v2/menus/{id} with locations).",
+    args_schema=AssignMenuLocationsInput,
+    coroutine=_assign_menu_locations,
+)
+
 get_site_info = StructuredTool.from_function(
     func=_get_site_info,
     name="get_site_info",
     description="Get WordPress site name, description, and URL.",
     coroutine=_get_site_info,
+)
+
+
+list_menus = StructuredTool.from_function(
+    func=_list_menus,
+    name="list_menus",
+    description="List WordPress navigation menus (requires /wp/v2/menus support on site).",
+    args_schema=ListMenusInput,
+    coroutine=_list_menus,
+)
+create_menu = StructuredTool.from_function(
+    func=_create_menu,
+    name="create_menu",
+    description="Create a WordPress navigation menu.",
+    args_schema=CreateMenuInput,
+    coroutine=_create_menu,
+)
+delete_menu = StructuredTool.from_function(
+    func=_delete_menu,
+    name="delete_menu",
+    description="Delete a WordPress navigation menu by ID.",
+    args_schema=DeleteMenuInput,
+    coroutine=_delete_menu,
+)
+list_menu_items = StructuredTool.from_function(
+    func=_list_menu_items,
+    name="list_menu_items",
+    description="List menu items, optionally filtered by menu ID.",
+    args_schema=ListMenuItemsInput,
+    coroutine=_list_menu_items,
+)
+create_menu_item = StructuredTool.from_function(
+    func=_create_menu_item,
+    name="create_menu_item",
+    description="Create a menu item. Use parent=<menu_item_id> to create a submenu item.",
+    args_schema=CreateMenuItemInput,
+    coroutine=_create_menu_item,
+)
+bulk_create_menus = StructuredTool.from_function(
+    func=_bulk_create_menus,
+    name="bulk_create_menus",
+    description="Bulk create menus (uses WP batch/v1 when available).",
+    args_schema=BulkCreateMenusInput,
+    coroutine=_bulk_create_menus,
+)
+bulk_create_menu_items = StructuredTool.from_function(
+    func=_bulk_create_menu_items,
+    name="bulk_create_menu_items",
+    description="Bulk create menu items (uses WP batch/v1 when available).",
+    args_schema=BulkCreateMenuItemsInput,
+    coroutine=_bulk_create_menu_items,
+)
+create_menu_tree = StructuredTool.from_function(
+    func=_create_menu_tree,
+    name="create_menu_tree",
+    description="Create a menu and a hierarchical tree of menu items/submenu items.",
+    args_schema=CreateMenuTreeInput,
+    coroutine=_create_menu_tree,
 )
 
 
@@ -702,9 +855,19 @@ ALL_TOOLS = [
     get_active_theme,
     create_theme_file,
     read_theme_file,
-    activate_theme,
     wp_cli_list_themes,
     wp_cli_activate_theme,
     # Site
     get_site_info,
+    # Menus
+    list_menu_locations,
+    assign_menu_locations,
+    list_menus,
+    create_menu,
+    delete_menu,
+    list_menu_items,
+    create_menu_item,
+    bulk_create_menus,
+    bulk_create_menu_items,
+    create_menu_tree,
 ]

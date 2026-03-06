@@ -22,6 +22,7 @@ class ChatRequest(BaseModel):
     attachments: Optional[list["AttachmentRef"]] = None
     wp_cli_wp_path: Optional[str] = None
     wp_cli_default_url: Optional[str] = None
+    wp_site_id: Optional[int] = None
 
 
 class AttachmentRef(BaseModel):

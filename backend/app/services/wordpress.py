@@ -493,6 +493,287 @@ class WordPressClient:
             "url": d.get("url"),
         }
 
+    async def _detect_menus_supported(self) -> bool:
+        url = f"{self.api_url}/menus"
+        meta = await self._options(url)
+        return bool(meta)
+
+    async def list_menus(self, **kwargs) -> dict:
+        response = await self._request("GET", f"{self.api_url}/menus", params=kwargs)
+        data = response.json()
+        menus = []
+        for m in data:
+            menus.append(
+                {
+                    "id": m.get("id"),
+                    "name": m.get("name"),
+                    "slug": m.get("slug"),
+                    "count": m.get("count"),
+                }
+            )
+        return {"menus": menus}
+
+    async def create_menu(self, name: str, **kwargs) -> dict:
+        ok = await self._detect_menus_supported()
+        if not ok:
+            raise ValueError(
+                "Menus endpoint not available on this WordPress site. "
+                "This typically requires WordPress 6.8+ (or an appropriate plugin) exposing /wp/v2/menus."
+            )
+        payload = {"menu-name": name, **kwargs}
+        m = await self._request_json("POST", f"{self.api_url}/menus", json=payload)
+        if not isinstance(m, dict):
+            return {"error": str(m)}
+        return {
+            "id": m.get("id"),
+            "name": m.get("name"),
+            "slug": m.get("slug"),
+        }
+
+    async def list_menu_locations(self) -> dict:
+        response = await self._request("GET", f"{self.api_url}/menu-locations")
+        data = response.json()
+        locations: list[dict[str, Any]] = []
+        if isinstance(data, list):
+            for loc in data:
+                if not isinstance(loc, dict):
+                    continue
+                locations.append(
+                    {
+                        "location": loc.get("location") or loc.get("name") or loc.get("slug"),
+                        "name": loc.get("name"),
+                        "description": loc.get("description"),
+                        "menu": loc.get("menu"),
+                    }
+                )
+        return {"menu_locations": locations}
+
+    async def assign_menu_locations(self, menu_id: int, locations: list[str]) -> dict:
+        if not menu_id:
+            raise ValueError("menu_id is required")
+        clean = [str(x).strip() for x in (locations or []) if str(x).strip()]
+        payload = {"locations": clean}
+        m = await self._request_json("POST", f"{self.api_url}/menus/{menu_id}", json=payload)
+        if not isinstance(m, dict):
+            return {"error": str(m)}
+        return {"id": m.get("id") or menu_id, "locations": m.get("locations") or clean}
+
+    async def delete_menu(self, menu_id: int, force: bool = True) -> dict:
+        params = {"force": "true" if force else "false"}
+        response = await self.client.delete(f"{self.api_url}/menus/{menu_id}", params=params)
+        _raise_for_status(response)
+        return {"id": menu_id, "deleted": True}
+
+    async def list_menu_items(self, **kwargs) -> dict:
+        response = await self._request("GET", f"{self.api_url}/menu-items", params=kwargs)
+        data = response.json()
+        items = []
+        for it in data:
+            title_obj = it.get("title") or {}
+            title = title_obj.get("rendered") if isinstance(title_obj, dict) else title_obj
+            items.append(
+                {
+                    "id": it.get("id"),
+                    "title": title,
+                    "url": it.get("url"),
+                    "menu_order": it.get("menu_order"),
+                    "parent": it.get("parent"),
+                    "type": it.get("type"),
+                    "object": it.get("object"),
+                    "object_id": it.get("object_id"),
+                    "status": it.get("status"),
+                }
+            )
+        return {
+            "menu_items": items,
+            "total": int(response.headers.get("X-WP-Total", 0)),
+            "total_pages": int(response.headers.get("X-WP-TotalPages", 0)),
+        }
+
+    async def create_menu_item(
+        self,
+        menu_id: int,
+        title: str,
+        type: str = "custom",
+        url: str | None = None,
+        object_id: int | None = None,
+        object: str | None = None,
+        parent: int | None = None,
+        menu_order: int | None = None,
+        status: str = "publish",
+        **kwargs,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "menu-id": menu_id,
+            "title": title,
+            "type": type,
+            "status": status,
+        }
+        if url is not None:
+            payload["url"] = url
+        if object_id is not None:
+            payload["object_id"] = object_id
+        if object is not None:
+            payload["object"] = object
+        if parent is not None:
+            payload["parent"] = parent
+        if menu_order is not None:
+            payload["menu_order"] = menu_order
+        payload.update(kwargs)
+
+        it = await self._request_json("POST", f"{self.api_url}/menu-items", json=payload)
+        if not isinstance(it, dict):
+            return {"error": str(it)}
+        return {
+            "id": it.get("id"),
+            "menu_id": it.get("menu-id") or it.get("menu_id") or menu_id,
+            "title": (it.get("title") or {}).get("rendered")
+            if isinstance(it.get("title"), dict)
+            else it.get("title"),
+            "url": it.get("url"),
+            "parent": it.get("parent"),
+            "menu_order": it.get("menu_order"),
+            "type": it.get("type"),
+            "status": it.get("status"),
+        }
+
+    async def update_menu_item(self, menu_item_id: int, **kwargs) -> dict:
+        it = await self._request_json(
+            "POST",
+            f"{self.api_url}/menu-items/{menu_item_id}",
+            json=kwargs,
+        )
+        if not isinstance(it, dict):
+            return {"error": str(it)}
+        return {
+            "id": it.get("id"),
+            "status": it.get("status"),
+            "parent": it.get("parent"),
+            "menu_order": it.get("menu_order"),
+            "url": it.get("url"),
+        }
+
+    async def delete_menu_item(self, menu_item_id: int, force: bool = True) -> dict:
+        response = await self.client.delete(
+            f"{self.api_url}/menu-items/{menu_item_id}",
+            params={"force": "true" if force else "false"},
+        )
+        _raise_for_status(response)
+        return {"id": menu_item_id, "deleted": True}
+
+    async def bulk_create_menus(self, menus: list[dict], validation: str | None = None) -> dict:
+        requests = []
+        for item in menus:
+            name = item.get("name") or item.get("menu-name")
+            if not name:
+                requests.append({"method": "POST", "path": "/wp/v2/menus", "body": item})
+                continue
+            body = {**item}
+            body.pop("name", None)
+            body.setdefault("menu-name", name)
+            requests.append({"method": "POST", "path": "/wp/v2/menus", "body": body})
+
+        batch = await self._batch_v1(requests, validation=validation)
+        if batch.get("mode") == "batch_v1" and "responses" in batch:
+            return batch
+
+        coros = []
+        for item in menus:
+            name = item.get("name") or item.get("menu-name")
+            if not name:
+                async def _missing():
+                    raise ValueError("name is required")
+                coros.append(_missing())
+            else:
+                body = {k: v for k, v in item.items() if k not in {"name"}}
+                coros.append(self.create_menu(name=name, **body))
+        return await self._bulk_client_side(coros)
+
+    async def bulk_create_menu_items(
+        self,
+        items: list[dict],
+        validation: str | None = None,
+        concurrency: int = 5,
+    ) -> dict:
+        requests = []
+        for item in items:
+            requests.append({"method": "POST", "path": "/wp/v2/menu-items", "body": item})
+
+        batch = await self._batch_v1(requests, validation=validation)
+        if batch.get("mode") == "batch_v1" and "responses" in batch:
+            return batch
+
+        coros = []
+        for item in items:
+            coros.append(
+                self.create_menu_item(
+                    menu_id=item.get("menu-id") or item.get("menu_id"),
+                    title=item.get("title") or item.get("menu-item-title") or "",
+                    type=item.get("type") or item.get("menu-item-type") or "custom",
+                    url=item.get("url") or item.get("menu-item-url"),
+                    object_id=item.get("object_id") or item.get("menu-item-object-id"),
+                    object=item.get("object") or item.get("menu-item-object"),
+                    parent=item.get("parent") or item.get("menu-item-parent-id"),
+                    menu_order=item.get("menu_order") or item.get("menu-item-position"),
+                    status=item.get("status") or item.get("menu-item-status") or "publish",
+                )
+            )
+        return await self._bulk_client_side(coros, concurrency=concurrency)
+
+    async def bulk_create_menu_tree(
+        self,
+        menu_name: str,
+        items: list[dict],
+    ) -> dict:
+        """Create a menu and its hierarchical items.
+
+        This uses batch/v1 when possible for the menu creation step and then builds
+        menu-items in parent-first order using client-side concurrency control.
+
+        Each item can use:
+        - title, url, type
+        - children: list[items]
+        """
+        menu = await self.create_menu(name=menu_name)
+        menu_id = menu.get("id")
+        if not menu_id:
+            return {"error": "menu_create_failed", "menu": menu}
+
+        flat: list[dict] = []
+
+        def walk(children: list[dict], parent_ref: str | None = None):
+            for idx, it in enumerate(children):
+                ref = it.get("ref") or f"{parent_ref or 'root'}:{idx}"
+                flat.append({"ref": ref, "parent_ref": parent_ref, **it})
+                walk(it.get("children") or [], parent_ref=ref)
+
+        walk(items)
+
+        created_by_ref: dict[str, int] = {}
+        results: list[dict] = []
+
+        # Create items sequentially in a way that ensures parents exist before children.
+        # (We still keep the function signature ready for future optimization.)
+        for it in flat:
+            parent_id = 0
+            parent_ref = it.get("parent_ref")
+            if parent_ref:
+                parent_id = created_by_ref.get(parent_ref, 0)
+
+            res = await self.create_menu_item(
+                menu_id=menu_id,
+                title=(it.get("title") or "").strip(),
+                url=it.get("url"),
+                type=it.get("type") or "custom",
+                parent=parent_id or 0,
+                status=it.get("status") or "publish",
+            )
+            results.append({"ref": it.get("ref"), "result": res})
+            if res.get("id"):
+                created_by_ref[it.get("ref")] = int(res["id"])
+
+        return {"menu": menu, "items": results}
+
     async def bulk_update_pages(self, updates: list[dict], validation: str | None = None) -> dict:
         requests = []
         for item in updates:

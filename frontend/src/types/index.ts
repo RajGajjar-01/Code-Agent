@@ -63,3 +63,11 @@ export interface DriveResponse {
     next_page_token?: string
 }
 
+export interface WordPressSite {
+    id: number
+    name?: string | null
+    base_url: string
+    username: string
+    created_at?: string
+    updated_at?: string
+}

@@ -48,7 +48,7 @@ export function LoginPage() {
                 {/* Logo */}
                 <div className="flex flex-col items-center gap-3">
                     <div className="h-14 w-14 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-                        <Layers className="h-7 w-7 text-primary-foreground" />
+                        <Layers className="h-7 w-7 text-black" />
                     </div>
                     <div className="text-center">
                         <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>

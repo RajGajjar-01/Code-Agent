@@ -42,9 +42,9 @@ export function AppSidebar() {
             <SidebarHeader className="border-b border-sidebar-border h-[60px] p-0">
                 <div className="flex items-center gap-2.5 px-5 h-full">
                     <div className="flex items-center justify-center h-8 w-8 shrink-0">
-                        <Layers className="h-6 w-6 text-sidebar-foreground" strokeWidth={2.5} />
+                        <Layers className="h-7 w-7 text-black" strokeWidth={2.5} />
                     </div>
-                    <span className="text-lg font-bold text-sidebar-foreground tracking-tight whitespace-nowrap flex-1">
+                    <span className="text-lg font-bold text-black tracking-tight whitespace-nowrap flex-1">
                         WP Agent
                     </span>
                 </div>
@@ -55,7 +55,7 @@ export function AppSidebar() {
                     <div className="px-2 pb-2">
                         <Button
                             onClick={startNewChat}
-                            className="w-full justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg h-11"
+                            className="w-full justify-center gap-2 bg-primary hover:bg-primary/90 text-black font-medium rounded-lg h-11"
                         >
                             <Plus className="h-5 w-5" strokeWidth={2.5} />
                             New Chat
@@ -107,7 +107,7 @@ export function AppSidebar() {
                             <Button
                                 variant="ghost"
                                 onClick={toggleConnectorsPanel}
-                                className="w-full justify-start gap-2.5 h-9 px-3 hover:bg-sidebar-accent text-sidebar-foreground font-medium"
+                                className="w-full justify-start gap-2.5 h-9 px-3 hover:bg-sidebar-accent text-black font-medium"
                             >
                                 <Plug className="h-4 w-4" strokeWidth={2} />
                                 <span>Connectors</span>

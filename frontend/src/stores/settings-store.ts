@@ -10,6 +10,8 @@ interface SettingsStore {
     setWpCliWpPath: (path: string) => void
     wpCliDefaultUrl: string
     setWpCliDefaultUrl: (url: string) => void
+    activeWpSiteId: number | null
+    setActiveWpSiteId: (id: number | null) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -21,6 +23,8 @@ export const useSettingsStore = create<SettingsStore>()(
             setWpCliWpPath: (path) => set({ wpCliWpPath: path }),
             wpCliDefaultUrl: '',
             setWpCliDefaultUrl: (url) => set({ wpCliDefaultUrl: url }),
+            activeWpSiteId: null,
+            setActiveWpSiteId: (id) => set({ activeWpSiteId: id }),
         }),
         {
             name: 'wp-agent-settings',

@@ -23,7 +23,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     className={cn(
                         'h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-semibold mt-0.5',
                         isUser
-                            ? 'bg-primary text-primary-foreground'
+                            ? 'bg-primary text-black'
                             : 'bg-secondary border text-foreground',
                     )}
                 >

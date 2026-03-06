@@ -51,10 +51,10 @@ export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
                     <button
                         key={s.text}
                         onClick={() => onSuggestionClick(s.prompt)}
-                        className="flex flex-col items-start gap-1.5 p-4 bg-card border rounded-lg text-left cursor-pointer transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-muted hover:shadow-md min-w-0 overflow-hidden"
+                        className="flex flex-col items-start gap-1.5 p-4 bg-card border rounded-lg text-left cursor-pointer transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/20 hover:shadow-md min-w-0 overflow-hidden"
                     >
                         <s.icon className="h-5 w-5 text-muted-foreground shrink-0" />
-                        <span className="text-[0.85rem] font-medium text-primary leading-snug break-words w-full">{s.text}</span>
+                        <span className="text-[0.85rem] font-medium text-black leading-snug break-words w-full">{s.text}</span>
                         <span className="text-[0.75rem] text-muted-foreground break-words w-full">{s.detail}</span>
                     </button>
                 ))}

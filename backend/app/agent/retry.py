@@ -50,6 +50,37 @@ async def retry_with_backoff(
     if config is None:
         config = RetryConfig()
 
+    def _maybe_get_status_code(exc: Exception) -> int | None:
+        status = getattr(exc, "status_code", None)
+        if isinstance(status, int):
+            return status
+        return None
+
+    def _maybe_get_wp_code(exc: Exception) -> str | None:
+        wp_code = getattr(exc, "wp_code", None)
+        if isinstance(wp_code, str) and wp_code.strip():
+            return wp_code.strip()
+        return None
+
+    def _looks_like_non_retryable_wp_error(exc: Exception) -> bool:
+        msg = str(exc)
+        wp_code = _maybe_get_wp_code(exc)
+        if wp_code in {
+            "rest_missing_callback_param",
+            "rest_post_invalid_id",
+            "menu_exists",
+        }:
+            return True
+        if "WordPress API error 400" in msg:
+            for code in (
+                "rest_missing_callback_param",
+                "rest_post_invalid_id",
+                "menu_exists",
+            ):
+                if code in msg:
+                    return True
+        return False
+
     last_exception = None
 
     for attempt in range(config.max_attempts):
@@ -68,8 +99,13 @@ async def retry_with_backoff(
             last_exception = e
 
             # Don't retry on client errors
-            if hasattr(e, "status_code") and e.status_code in config.no_retry_status_codes:
-                logger.warning(f"Client error {e.status_code}, not retrying")
+            status_code = _maybe_get_status_code(e)
+            if status_code is not None and status_code in config.no_retry_status_codes:
+                logger.warning(f"Client error {status_code}, not retrying")
+                raise
+
+            if _looks_like_non_retryable_wp_error(e):
+                logger.warning("Non-retryable WordPress validation error, not retrying")
                 raise
 
             # Last attempt, don't wait

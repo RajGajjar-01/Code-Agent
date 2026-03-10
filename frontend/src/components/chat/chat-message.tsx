@@ -73,7 +73,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                         </>
                     ) : (
                         /* Assistant markdown */
-                        <div className="prose prose-sm max-w-full dark:prose-invert prose-pre:bg-muted prose-pre:border prose-code:text-sm text-[0.9rem] leading-[1.7] break-words overflow-hidden">
+                        <div className="prose prose-sm max-w-full dark:prose-invert prose-pre:bg-muted prose-pre:border prose-code:text-sm prose-a:text-primary prose-a:underline prose-a:underline-offset-4 hover:prose-a:text-primary/80 dark:prose-a:text-primary text-[0.9rem] leading-[1.7] break-words overflow-hidden">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{

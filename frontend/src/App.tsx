@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { RootLayout } from '@/components/layout/root-layout'
 import { ChatPage } from '@/pages/chat-page'
+import { ProfilePage } from '@/pages/profile-page'
 import { LoginPage } from '@/pages/login-page'
 import { SignupPage } from '@/pages/signup-page'
 import { useUserStore } from '@/stores/user-store'
@@ -66,6 +67,7 @@ export default function App() {
                     <Route element={<AuthGuard />}>
                         <Route element={<RootLayout />}>
                             <Route index element={<ChatPage />} />
+                            <Route path="/profile" element={<ProfilePage />} />
                         </Route>
                     </Route>
                 </Routes>

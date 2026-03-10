@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,6 +71,41 @@ async def list_menus(
             await created.close()
 
 
+@router.post("/items/{menu_item_id}")
+async def update_menu_item(
+    menu_item_id: int,
+    body: dict,
+    wp_site_id: int | None = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
+    try:
+        allowed = {"parent", "menu_order", "status", "title", "url"}
+        payload = {k: v for k, v in (body or {}).items() if k in allowed}
+        if not payload:
+            raise HTTPException(status_code=400, detail="No updatable fields provided")
+        return await wp.update_menu_item(menu_item_id=menu_item_id, **payload)
+    finally:
+        if created:
+            await created.close()
+
+
+@router.delete("/items/{menu_item_id}")
+async def delete_menu_item(
+    menu_item_id: int,
+    wp_site_id: int | None = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
+    try:
+        return await wp.delete_menu_item(menu_item_id=menu_item_id, force=True)
+    finally:
+        if created:
+            await created.close()
+
+
 @router.post("")
 async def create_menu(
     body: dict,
@@ -97,6 +134,40 @@ async def delete_menu(
     wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
     try:
         return await wp.delete_menu(menu_id)
+    finally:
+        if created:
+            await created.close()
+
+
+@router.get("/locations")
+async def list_menu_locations(
+    wp_site_id: int | None = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
+    try:
+        return await wp.list_menu_locations()
+    finally:
+        if created:
+            await created.close()
+
+
+@router.post("/{menu_id}/locations")
+async def assign_menu_locations(
+    menu_id: int,
+    body: dict,
+    wp_site_id: int | None = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    locations = body.get("locations")
+    if not isinstance(locations, list) or not [x for x in locations if str(x).strip()]:
+        raise HTTPException(status_code=400, detail="locations must be a non-empty list")
+
+    wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
+    try:
+        return await wp.assign_menu_locations(menu_id=menu_id, locations=locations)
     finally:
         if created:
             await created.close()
@@ -182,10 +253,6 @@ async def bulk_create_menu_items(
     wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
     try:
         items = [i.model_dump(by_alias=True) for i in req.items]
-        # Ensure expected WP param key exists
-        for it in items:
-            if "menu-id" not in it and "menu_id" in it:
-                it["menu-id"] = it.pop("menu_id")
         return await wp.bulk_create_menu_items(items)
     finally:
         if created:
@@ -201,7 +268,15 @@ async def create_menu_tree(
 ):
     wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
 
+    if req.menu_id is None and not (req.menu_name or "").strip():
+        raise HTTPException(status_code=400, detail="menu_name is required when menu_id is not provided")
+
     def to_dict(node):
+        # Enforce a max depth of 2 levels: (root -> child). No grandchildren.
+        for c in node.children or []:
+            if getattr(c, "children", None):
+                if c.children:
+                    raise HTTPException(status_code=400, detail="Only 2 menu levels are supported")
         return {
             "title": node.title,
             "url": node.url,
@@ -212,7 +287,73 @@ async def create_menu_tree(
 
     try:
         items = [to_dict(i) for i in req.items]
-        return await wp.bulk_create_menu_tree(menu_name=req.menu_name, items=items)
+        return await wp.bulk_create_menu_tree(items=items, menu_name=req.menu_name, menu_id=req.menu_id)
+    finally:
+        if created:
+            await created.close()
+
+
+@router.get("/{menu_id}/tree")
+async def get_menu_tree(
+    menu_id: int,
+    wp_site_id: int | None = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    wp, created = await _get_wp_client(wp_site_id=wp_site_id, current_user=current_user, db=db)
+    try:
+        page = 1
+        all_items: list[dict[str, Any]] = []
+        while True:
+            res = await wp.list_menu_items(menus=menu_id, per_page=100, page=page)
+            items = res.get("menu_items") or []
+            if not isinstance(items, list):
+                break
+            all_items.extend(items)
+            total_pages = int(res.get("total_pages") or 0)
+            if total_pages and page >= total_pages:
+                break
+            if not total_pages and len(items) < 100:
+                break
+            page += 1
+
+        nodes: dict[int, dict[str, Any]] = {}
+        children_by_parent: dict[int, list[int]] = {}
+
+        for it in all_items:
+            try:
+                it_id = int(it.get("id"))
+            except Exception:
+                continue
+            parent = int(it.get("parent") or 0)
+            nodes[it_id] = {
+                "id": it_id,
+                "title": it.get("title"),
+                "url": it.get("url"),
+                "menu_order": it.get("menu_order"),
+                "parent": parent,
+                "type": it.get("type"),
+                "status": it.get("status"),
+                "children": [],
+            }
+            children_by_parent.setdefault(parent, []).append(it_id)
+
+        def sort_key(child_id: int):
+            mo = nodes.get(child_id, {}).get("menu_order")
+            try:
+                return int(mo or 0)
+            except Exception:
+                return 0
+
+        roots: list[dict[str, Any]] = []
+        for root_id in sorted(children_by_parent.get(0, []), key=sort_key):
+            root = nodes[root_id]
+            # Only build 2 levels deep
+            for child_id in sorted(children_by_parent.get(root_id, []), key=sort_key):
+                root["children"].append(nodes[child_id])
+            roots.append(root)
+
+        return {"menu_id": menu_id, "items": roots, "total_items": len(all_items)}
     finally:
         if created:
             await created.close()

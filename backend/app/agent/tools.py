@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import urllib.request
+import contextvars
 from pathlib import Path
 from typing import Any, Optional
 
@@ -52,9 +53,17 @@ from app.agent.tools_schema import (
     WpCliListThemesInput,
     ListMenuLocationsInput,
     AssignMenuLocationsInput,
+    WpCliMenuCreateInput,
+    WpCliMenuLocationAssignInput,
+    WpCliMenuLocationListInput,
+    WpCliMenuItemAddCustomInput,
+    WpCliMenuItemAddPostInput,
 )
 
-_wp_client: Optional[Any] = None
+_wp_client_var: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
+    "wp_client",
+    default=None,
+)
 _wp_cli_wp_path_override: str | None = None
 _wp_cli_default_url_override: str | None = None
 _wp_cli_install_lock: asyncio.Lock | None = None
@@ -111,10 +120,12 @@ async def ensure_wp_cli_installed() -> str | None:
         return str(local_path)
 
 
-def set_wp_client(client: Any) -> None:
-    """Set the global WP client for tool functions."""
-    global _wp_client
-    _wp_client = client
+def set_wp_client(client: Any) -> contextvars.Token:
+    return _wp_client_var.set(client)
+
+
+def reset_wp_client(token: contextvars.Token) -> None:
+    _wp_client_var.reset(token)
 
 
 def set_wp_cli_context(wp_path: str | None = None, default_url: str | None = None) -> None:
@@ -124,11 +135,12 @@ def set_wp_cli_context(wp_path: str | None = None, default_url: str | None = Non
 
 
 def _client():
-    if not _wp_client:
+    client = _wp_client_var.get()
+    if not client:
         raise RuntimeError(
             "WordPress client not configured. Select an active WordPress site (wp_site_id) and retry."
         )
-    return _wp_client
+    return client
 
 
 def _get_wp_cli_args() -> tuple[str, list[str]]:
@@ -225,7 +237,39 @@ async def _get_page(page_id: int) -> dict:
     return await _client().get_page(page_id)
 
 
-async def _create_page(title: str, content: str, status: str = "publish") -> dict:
+async def _create_page(
+    title: str,
+    content: str,
+    status: str = "publish",
+    allow_duplicate: bool = False,
+) -> dict:
+    existing = await _client().find_page_by_slug_or_title(title)
+    if existing and not allow_duplicate:
+        clean_title = (existing.get("title") or title or "").strip()
+        return {
+            "status": "exists",
+            "needs_confirmation": True,
+            "message": (
+                f"A page titled '{clean_title}' already exists. "
+                "Are you sure you want to create another page with the same name?"
+            ),
+            "existing": {
+                "title": existing.get("title"),
+                "link": existing.get("link"),
+                "status": existing.get("status"),
+                "slug": existing.get("slug"),
+            },
+            "next_call": {
+                "tool": "create_page",
+                "arguments": {
+                    "title": title,
+                    "content": content,
+                    "status": status,
+                    "allow_duplicate": True,
+                },
+            },
+        }
+
     return await _client().create_page(title=title, content=content, status=status)
 
 
@@ -389,6 +433,90 @@ async def _wp_cli_activate_theme(theme_slug: str) -> dict:
     return {"status": "activated", "theme_slug": theme_slug}
 
 
+async def _wp_cli_menu_create(name: str, porcelain: bool = True) -> dict:
+    cmd = ["menu", "create", name]
+    if porcelain:
+        cmd.append("--porcelain")
+    res = await _run_wp_cli(cmd)
+    menu_id: int | None = None
+    if porcelain:
+        try:
+            menu_id = int((res.get("stdout") or "").strip())
+        except Exception:
+            menu_id = None
+    return {"menu_id": menu_id, "stdout": res.get("stdout"), "stderr": res.get("stderr")}
+
+
+async def _wp_cli_menu_location_list(format: str = "json") -> dict:
+    res = await _run_wp_cli(["menu", "location", "list", f"--format={format}"])
+    if format == "json":
+        try:
+            return {"locations": json.loads(res.get("stdout") or "[]")}
+        except Exception:
+            return {"locations": [], "stdout": res.get("stdout"), "stderr": res.get("stderr")}
+    return {"stdout": res.get("stdout"), "stderr": res.get("stderr")}
+
+
+async def _wp_cli_menu_location_assign(menu: str, location: str) -> dict:
+    res = await _run_wp_cli(["menu", "location", "assign", str(menu), str(location)])
+    return {"status": "assigned", "menu": menu, "location": location, "stdout": res.get("stdout")}
+
+
+async def _wp_cli_menu_item_add_post(
+    menu: str,
+    post_id: int,
+    title: str | None = None,
+    position: int | None = None,
+    parent_id: int | None = None,
+    porcelain: bool = True,
+) -> dict:
+    cmd: list[str] = ["menu", "item", "add-post", str(menu), str(int(post_id))]
+    if title:
+        cmd.append(f"--title={title}")
+    if position is not None:
+        cmd.append(f"--position={int(position)}")
+    if parent_id is not None:
+        cmd.append(f"--parent-id={int(parent_id)}")
+    if porcelain:
+        cmd.append("--porcelain")
+    res = await _run_wp_cli(cmd)
+    menu_item_id: int | None = None
+    if porcelain:
+        try:
+            menu_item_id = int((res.get("stdout") or "").strip())
+        except Exception:
+            menu_item_id = None
+    return {"menu_item_id": menu_item_id, "stdout": res.get("stdout"), "stderr": res.get("stderr")}
+
+
+async def _wp_cli_menu_item_add_custom(
+    menu: str,
+    title: str,
+    link: str,
+    position: int | None = None,
+    parent_id: int | None = None,
+    porcelain: bool = True,
+) -> dict:
+    clean_link = (link or "").strip()
+    if not clean_link:
+        raise ValueError("link is required")
+    cmd: list[str] = ["menu", "item", "add-custom", str(menu), str(title), clean_link]
+    if position is not None:
+        cmd.append(f"--position={int(position)}")
+    if parent_id is not None:
+        cmd.append(f"--parent-id={int(parent_id)}")
+    if porcelain:
+        cmd.append("--porcelain")
+    res = await _run_wp_cli(cmd)
+    menu_item_id: int | None = None
+    if porcelain:
+        try:
+            menu_item_id = int((res.get("stdout") or "").strip())
+        except Exception:
+            menu_item_id = None
+    return {"menu_item_id": menu_item_id, "stdout": res.get("stdout"), "stderr": res.get("stderr")}
+
+
 async def _list_menu_locations() -> dict:
     return await _client().list_menu_locations()
 
@@ -433,6 +561,8 @@ async def _create_menu_item(
     menu_order: int | None = None,
     status: str = "publish",
 ) -> dict:
+    if (type or "").strip() == "custom" and not (url or "").strip():
+        raise ValueError("url is required when using a custom menu item type")
     return await _client().create_menu_item(
         menu_id=menu_id,
         title=title,
@@ -454,8 +584,50 @@ async def _bulk_create_menu_items(items: list[dict]) -> dict:
     return await _client().bulk_create_menu_items(items)
 
 
-async def _create_menu_tree(menu_name: str, items: list[dict]) -> dict:
-    return await _client().bulk_create_menu_tree(menu_name=menu_name, items=items)
+async def _create_menu_tree(
+    items: list[dict],
+    menu_name: str | None = None,
+    menu_id: int | None = None,
+) -> dict:
+    if menu_id is None and not (menu_name or "").strip():
+        raise ValueError("menu_name is required when menu_id is not provided")
+
+    def _clean_str(v: Any | None) -> str:
+        return str(v or "").strip()
+
+    def _walk(nodes: list[dict], *, level: int, parent_ref: str) -> None:
+        if level > 2:
+            raise ValueError("Only 2 menu levels are supported")
+
+        for idx, node in enumerate(nodes or []):
+            if not isinstance(node, dict):
+                raise ValueError("Invalid menu tree item: expected object")
+
+            ref = _clean_str(node.get("ref")) or f"{parent_ref}:{idx}"
+            title = _clean_str(node.get("title"))
+            item_type = _clean_str(node.get("type")) or "custom"
+
+            if item_type == "custom":
+                url = _clean_str(node.get("url"))
+                if not url:
+                    raise ValueError(
+                        "url is required when using a custom menu item type "
+                        f"(ref='{ref}', title='{title or 'unknown'}')"
+                    )
+
+            children = node.get("children") or []
+            if children:
+                if level == 2:
+                    raise ValueError("Only 2 menu levels are supported")
+                if not isinstance(children, list):
+                    raise ValueError(
+                        f"Invalid children for menu tree item (ref='{ref}'): expected list"
+                    )
+                _walk(children, level=level + 1, parent_ref=ref)
+
+    _walk(items, level=1, parent_ref="root")
+
+    return await _client().bulk_create_menu_tree(items=items, menu_name=menu_name, menu_id=menu_id)
 
 
 list_pages = StructuredTool.from_function(
@@ -730,6 +902,46 @@ wp_cli_activate_theme = StructuredTool.from_function(
     coroutine=_wp_cli_activate_theme,
 )
 
+wp_cli_menu_create = StructuredTool.from_function(
+    func=_wp_cli_menu_create,
+    name="wp_cli_menu_create",
+    description="Create a navigation menu using WP-CLI.",
+    args_schema=WpCliMenuCreateInput,
+    coroutine=_wp_cli_menu_create,
+)
+
+wp_cli_menu_location_list = StructuredTool.from_function(
+    func=_wp_cli_menu_location_list,
+    name="wp_cli_menu_location_list",
+    description="List available theme menu locations using WP-CLI.",
+    args_schema=WpCliMenuLocationListInput,
+    coroutine=_wp_cli_menu_location_list,
+)
+
+wp_cli_menu_location_assign = StructuredTool.from_function(
+    func=_wp_cli_menu_location_assign,
+    name="wp_cli_menu_location_assign",
+    description="Assign a menu to a theme location using WP-CLI.",
+    args_schema=WpCliMenuLocationAssignInput,
+    coroutine=_wp_cli_menu_location_assign,
+)
+
+wp_cli_menu_item_add_post = StructuredTool.from_function(
+    func=_wp_cli_menu_item_add_post,
+    name="wp_cli_menu_item_add_post",
+    description="Add a page/post as a menu item using WP-CLI (supports submenu via parent_id).",
+    args_schema=WpCliMenuItemAddPostInput,
+    coroutine=_wp_cli_menu_item_add_post,
+)
+
+wp_cli_menu_item_add_custom = StructuredTool.from_function(
+    func=_wp_cli_menu_item_add_custom,
+    name="wp_cli_menu_item_add_custom",
+    description="Add a custom link as a menu item using WP-CLI (supports submenu via parent_id).",
+    args_schema=WpCliMenuItemAddCustomInput,
+    coroutine=_wp_cli_menu_item_add_custom,
+)
+
 list_menu_locations = StructuredTool.from_function(
     func=_list_menu_locations,
     name="list_menu_locations",
@@ -857,6 +1069,11 @@ ALL_TOOLS = [
     read_theme_file,
     wp_cli_list_themes,
     wp_cli_activate_theme,
+    wp_cli_menu_create,
+    wp_cli_menu_location_list,
+    wp_cli_menu_location_assign,
+    wp_cli_menu_item_add_post,
+    wp_cli_menu_item_add_custom,
     # Site
     get_site_info,
     # Menus
@@ -866,6 +1083,86 @@ ALL_TOOLS = [
     create_menu,
     delete_menu,
     list_menu_items,
+    create_menu_item,
+    bulk_create_menus,
+    bulk_create_menu_items,
+    create_menu_tree,
+]
+
+
+# Token-optimized tool subsets. Binding fewer tools reduces prompt size significantly
+# because tool schemas/descriptions are included in each LLM call.
+READ_TOOLS = [
+    # Pages
+    list_pages,
+    get_page,
+    # Posts
+    list_posts,
+    get_post,
+    # Media
+    list_media,
+    # Categories / Tags
+    list_categories,
+    list_tags,
+    # Users / Settings
+    list_users,
+    get_current_user,
+    get_settings,
+    # ACF
+    get_acf_fields,
+    list_acf_field_groups,
+    # Themes
+    list_themes,
+    get_active_theme,
+    wp_cli_list_themes,
+    wp_cli_menu_location_list,
+    # Site
+    get_site_info,
+    # Menus
+    list_menu_locations,
+    list_menus,
+    list_menu_items,
+]
+
+
+WRITE_TOOLS = [
+    # Pages
+    create_page,
+    update_page,
+    delete_page,
+    bulk_update_pages,
+    bulk_delete_pages,
+    fetch_all_pages,
+    # Posts
+    create_post,
+    update_post,
+    delete_post,
+    bulk_update_posts,
+    bulk_delete_posts,
+    fetch_all_posts,
+    # Media
+    upload_media,
+    delete_media,
+    bulk_upload_media,
+    # Categories / Tags
+    create_category,
+    create_tag,
+    # Settings
+    update_settings,
+    # ACF
+    update_acf_fields,
+    # Themes
+    create_theme_file,
+    read_theme_file,
+    wp_cli_activate_theme,
+    wp_cli_menu_create,
+    wp_cli_menu_location_assign,
+    wp_cli_menu_item_add_post,
+    wp_cli_menu_item_add_custom,
+    # Menus
+    assign_menu_locations,
+    create_menu,
+    delete_menu,
     create_menu_item,
     bulk_create_menus,
     bulk_create_menu_items,

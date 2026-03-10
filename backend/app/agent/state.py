@@ -18,5 +18,7 @@ class AgentState(TypedDict):
     remaining_steps: RemainingSteps
     tool_calls_executed: list[dict]
     wp_client: Optional[Any]
+    tools: list[Any]
     execution_metadata: ExecutionMetadata
     config: dict
+    pending_tool_call: Optional[dict]

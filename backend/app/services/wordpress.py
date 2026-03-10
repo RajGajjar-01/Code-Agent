@@ -1,9 +1,17 @@
 import mimetypes
 import asyncio
+import re
 from pathlib import Path
 from typing import Any, Optional
 
 import httpx
+
+
+class WordPressAPIError(ValueError):
+    def __init__(self, status_code: int, message: str, wp_code: str | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.wp_code = wp_code
 
 
 def _raise_for_status(response: httpx.Response):
@@ -11,9 +19,16 @@ def _raise_for_status(response: httpx.Response):
         try:
             detail = response.json()
             msg = detail.get("message") or detail.get("error") or response.text
+            code = detail.get("code")
+            if code:
+                msg = f"{code}: {msg}"
         except Exception:
             msg = response.text
-        raise ValueError(f"WordPress API error {response.status_code}: {msg}")
+        raise WordPressAPIError(
+            status_code=response.status_code,
+            message=f"WordPress API error {response.status_code}: {msg}",
+            wp_code=code if "code" in locals() else None,
+        )
 
 
 class WordPressClient:
@@ -28,6 +43,7 @@ class WordPressClient:
         self._supports_batch_v1: bool | None = None
         self._max_batch_size: int | None = None
         self._acf_field_groups_supported: bool | None = None
+        self._menu_items_assignment_key: str | None = None
 
     async def close(self):
         await self.client.aclose()
@@ -80,6 +96,34 @@ class WordPressClient:
         self._supports_batch_v1 = True
         return True
 
+    async def _detect_menu_items_assignment_key(self) -> str:
+        if self._menu_items_assignment_key is not None:
+            return self._menu_items_assignment_key
+
+        url = f"{self.api_url}/menu-items"
+        meta = await self._options(url)
+        key: str | None = None
+        try:
+            endpoints = (meta or {}).get("endpoints") or []
+            for ep in endpoints:
+                if not isinstance(ep, dict):
+                    continue
+                if ep.get("methods") != ["POST"] and ep.get("methods") != ["POST", "PUT", "PATCH"]:
+                    continue
+                args = ep.get("args") or {}
+                if isinstance(args, dict):
+                    if "menus" in args:
+                        key = "menus"
+                        break
+                    if "menu-id" in args:
+                        key = "menu-id"
+                        break
+        except Exception:
+            key = None
+
+        self._menu_items_assignment_key = key or "menu-id"
+        return self._menu_items_assignment_key
+
     async def _batch_v1(self, requests: list[dict], validation: str | None = None) -> dict:
         ok = await self._detect_batch_v1()
         if not ok:
@@ -128,6 +172,68 @@ class WordPressClient:
             "total": int(response.headers.get("X-WP-Total", 0)),
             "total_pages": int(response.headers.get("X-WP-TotalPages", 0)),
         }
+
+    def _slugify_title(self, title: str) -> str:
+        raw = (title or "").strip().lower()
+        raw = re.sub(r"[^a-z0-9]+", "-", raw)
+        raw = re.sub(r"-+", "-", raw).strip("-")
+        return raw
+
+    def _normalize_title(self, title: str) -> str:
+        return re.sub(r"\s+", " ", (title or "").strip()).lower()
+
+    async def find_page_by_slug_or_title(self, title: str) -> dict | None:
+        """Best-effort duplicate detection.
+
+        Checks `slug` first, then falls back to `search` and exact title comparison.
+        Returns minimal page info if found, otherwise None.
+        """
+        slug = self._slugify_title(title)
+        if slug:
+            try:
+                resp = await self._request(
+                    "GET",
+                    f"{self.api_url}/pages",
+                    params={"slug": slug, "status": "any", "per_page": 1},
+                )
+                items = resp.json()
+                if isinstance(items, list) and items:
+                    p = items[0]
+                    return {
+                        "id": p.get("id"),
+                        "title": (p.get("title") or {}).get("rendered", ""),
+                        "link": p.get("link"),
+                        "slug": p.get("slug"),
+                        "status": p.get("status"),
+                    }
+            except Exception:
+                pass
+
+        # Fallback: search then exact-match on title.rendered (case/whitespace normalized)
+        try:
+            resp = await self._request(
+                "GET",
+                f"{self.api_url}/pages",
+                params={"search": title, "status": "any", "per_page": 10},
+            )
+            items = resp.json()
+        except Exception:
+            items = []
+
+        want = self._normalize_title(title)
+        if isinstance(items, list) and want:
+            for p in items:
+                rendered = (p.get("title") or {}).get("rendered", "")
+                if self._normalize_title(rendered) == want:
+                    return {
+                        "id": p.get("id"),
+                        "title": rendered,
+                        "link": p.get("link"),
+                        "slug": p.get("slug"),
+                        "status": p.get("status"),
+                    }
+
+        return None
 
     async def get_page(self, page_id: int) -> dict:
         response = await self._request("GET", f"{self.api_url}/pages/{page_id}")
@@ -520,7 +626,9 @@ class WordPressClient:
                 "Menus endpoint not available on this WordPress site. "
                 "This typically requires WordPress 6.8+ (or an appropriate plugin) exposing /wp/v2/menus."
             )
-        payload = {"menu-name": name, **kwargs}
+        payload = {"name": name, **kwargs}
+        # Back-compat for any code paths expecting the older alias.
+        payload.setdefault("menu-name", name)
         m = await self._request_json("POST", f"{self.api_url}/menus", json=payload)
         if not isinstance(m, dict):
             return {"error": str(m)}
@@ -603,30 +711,90 @@ class WordPressClient:
         status: str = "publish",
         **kwargs,
     ) -> dict:
-        payload: dict[str, Any] = {
-            "menu-id": menu_id,
+        if (type or "").strip() == "custom" and not (url or "").strip():
+            raise ValueError("url is required when using a custom menu item type")
+
+        menu_id_int = int(menu_id)
+
+        base_payload: dict[str, Any] = {
             "title": title,
             "type": type,
             "status": status,
         }
         if url is not None:
-            payload["url"] = url
+            base_payload["url"] = url
         if object_id is not None:
-            payload["object_id"] = object_id
+            base_payload["object_id"] = object_id
         if object is not None:
-            payload["object"] = object
+            base_payload["object"] = object
         if parent is not None:
-            payload["parent"] = parent
+            base_payload["parent"] = parent
         if menu_order is not None:
-            payload["menu_order"] = menu_order
-        payload.update(kwargs)
+            base_payload["menu_order"] = menu_order
+        base_payload.update(kwargs)
 
-        it = await self._request_json("POST", f"{self.api_url}/menu-items", json=payload)
+        # Different WP installs accept different ways to assign menu items to a menu.
+        # We try the detected key first, but fall back based on WP error codes/messages.
+        assignment_key = await self._detect_menu_items_assignment_key()
+
+        candidates: list[dict[str, Any]] = []
+        if assignment_key == "menus":
+            candidates.append({**base_payload, "menus": menu_id_int})
+            candidates.append({**base_payload, "menus": [menu_id_int]})
+            candidates.append({**base_payload, "menu-id": menu_id_int})
+        else:
+            candidates.append({**base_payload, "menu-id": menu_id_int})
+            candidates.append({**base_payload, "menus": menu_id_int})
+            candidates.append({**base_payload, "menus": [menu_id_int]})
+
+        last_err: Exception | None = None
+        it: Any = None
+        for payload in candidates:
+            try:
+                it = await self._request_json("POST", f"{self.api_url}/menu-items", json=payload)
+                last_err = None
+                break
+            except WordPressAPIError as e:
+                last_err = e
+                msg = str(e)
+                # If this is a known "wrong assignment param" case, try next candidate.
+                if (
+                    e.status_code == 400
+                    and (
+                        e.wp_code in {"rest_invalid_param", "invalid_menu_id"}
+                        or "Invalid parameter(s): menus" in msg
+                        or "Invalid menu ID" in msg
+                    )
+                ):
+                    continue
+                raise
+
+        if last_err is not None:
+            raise last_err
+
         if not isinstance(it, dict):
             return {"error": str(it)}
+
+        menu_from_response: int | None = None
+        menus = it.get("menus")
+        if isinstance(menus, int):
+            menu_from_response = menus
+        elif isinstance(menus, list) and menus:
+            try:
+                menu_from_response = int(menus[0])
+            except Exception:
+                menu_from_response = None
+        if menu_from_response is None:
+            maybe_menu_id = it.get("menu-id") or it.get("menu_id")
+            if maybe_menu_id is not None:
+                try:
+                    menu_from_response = int(maybe_menu_id)
+                except Exception:
+                    menu_from_response = None
+
         return {
             "id": it.get("id"),
-            "menu_id": it.get("menu-id") or it.get("menu_id") or menu_id,
+            "menu_id": menu_from_response or menu_id,
             "title": (it.get("title") or {}).get("rendered")
             if isinstance(it.get("title"), dict)
             else it.get("title"),
@@ -670,6 +838,7 @@ class WordPressClient:
                 continue
             body = {**item}
             body.pop("name", None)
+            body.setdefault("name", name)
             body.setdefault("menu-name", name)
             requests.append({"method": "POST", "path": "/wp/v2/menus", "body": body})
 
@@ -695,9 +864,27 @@ class WordPressClient:
         validation: str | None = None,
         concurrency: int = 5,
     ) -> dict:
+        assignment_key = await self._detect_menu_items_assignment_key()
         requests = []
         for item in items:
-            requests.append({"method": "POST", "path": "/wp/v2/menu-items", "body": item})
+            body = {**(item or {})}
+            menu_id = body.pop("menu_id", None)
+            if menu_id is None:
+                menu_id = body.pop("menu-id", None)
+            if menu_id is not None:
+                if assignment_key == "menus":
+                    body["menus"] = int(menu_id)
+                else:
+                    body["menu-id"] = menu_id
+            body.pop("menu-item-parent-id", None)
+            body.pop("menu-item-title", None)
+            body.pop("menu-item-type", None)
+            body.pop("menu-item-url", None)
+            body.pop("menu-item-object-id", None)
+            body.pop("menu-item-object", None)
+            body.pop("menu-item-position", None)
+            body.pop("menu-item-status", None)
+            requests.append({"method": "POST", "path": "/wp/v2/menu-items", "body": body})
 
         batch = await self._batch_v1(requests, validation=validation)
         if batch.get("mode") == "batch_v1" and "responses" in batch:
@@ -705,9 +892,10 @@ class WordPressClient:
 
         coros = []
         for item in items:
+            menu_id = item.get("menu_id") or item.get("menu-id")
             coros.append(
                 self.create_menu_item(
-                    menu_id=item.get("menu-id") or item.get("menu_id"),
+                    menu_id=menu_id,
                     title=item.get("title") or item.get("menu-item-title") or "",
                     type=item.get("type") or item.get("menu-item-type") or "custom",
                     url=item.get("url") or item.get("menu-item-url"),
@@ -722,22 +910,24 @@ class WordPressClient:
 
     async def bulk_create_menu_tree(
         self,
-        menu_name: str,
         items: list[dict],
+        menu_name: str | None = None,
+        menu_id: int | None = None,
     ) -> dict:
-        """Create a menu and its hierarchical items.
-
-        This uses batch/v1 when possible for the menu creation step and then builds
-        menu-items in parent-first order using client-side concurrency control.
-
-        Each item can use:
-        - title, url, type
-        - children: list[items]
-        """
-        menu = await self.create_menu(name=menu_name)
-        menu_id = menu.get("id")
-        if not menu_id:
-            return {"error": "menu_create_failed", "menu": menu}
+        if menu_id is None:
+            clean_name = (menu_name or "").strip()
+            if not clean_name:
+                raise ValueError("menu_name is required when menu_id is not provided")
+            menu = await self.create_menu(name=clean_name)
+            created_menu_id = menu.get("id")
+            if not created_menu_id:
+                return {"error": "menu_create_failed", "menu": menu}
+            try:
+                menu_id = int(created_menu_id)
+            except Exception:
+                return {"error": "menu_create_failed", "menu": menu}
+        else:
+            menu = {"id": menu_id}
 
         flat: list[dict] = []
 
@@ -759,6 +949,11 @@ class WordPressClient:
             parent_ref = it.get("parent_ref")
             if parent_ref:
                 parent_id = created_by_ref.get(parent_ref, 0)
+
+            it_type = (it.get("type") or "custom").strip()
+            it_url = it.get("url")
+            if it_type == "custom" and not (it_url or "").strip():
+                raise ValueError("url is required when using a custom menu item type")
 
             res = await self.create_menu_item(
                 menu_id=menu_id,

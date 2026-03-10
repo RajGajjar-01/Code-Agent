@@ -103,7 +103,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
                 />
 
                 {/* Input box */}
-                <div className="px-4 py-2 rounded-lg border bg-background shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+                <div className="pl-5 pr-3 py-2 rounded-xl border bg-background shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
                     {pendingFiles.length ? (
                         <div className="mb-2 flex gap-2 overflow-x-auto">
                             {previewUrls.map((p, idx) => (
@@ -126,18 +126,18 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
                         </div>
                     ) : null}
 
-                    <div className="flex items-end gap-2">
+                    <div className="flex items-center gap-2">
                         <textarea
                             ref={textareaRef}
                             placeholder="Describe the WordPress site you want to build..."
-                            className="flex-1 bg-transparent border-0 outline-none resize-none text-[0.9rem] leading-[1.5] min-h-6 max-h-[160px] py-1.5 text-foreground placeholder:text-muted-foreground"
+                            className="flex-1 bg-transparent border-0 outline-none resize-none text-md leading-[1.5] min-h-[44px] max-h-[160px] py-2.5 text-foreground placeholder:text-muted-foreground"
                             rows={1}
                             onKeyDown={handleKeyDown}
                             onInput={handleInput}
                             onPaste={handlePaste}
                             autoFocus
                         />
-                        <div className="flex items-center gap-1 shrink-0 pb-0.5">
+                        <div className="flex items-center gap-1.5 shrink-0">
                             <Button
                                 variant="ghost"
                                 size="icon"

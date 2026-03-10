@@ -15,7 +15,7 @@ from app.agent.llm_factory import LLMProviderFactory
 from app.agent.models import ExecutionSummary, ToolCallRecord
 from app.agent.retry import RetryConfig, retry_with_backoff
 from app.agent.state import AgentState
-from app.agent.tools import ALL_TOOLS, set_wp_client
+from app.agent.tools import READ_TOOLS, WRITE_TOOLS, reset_wp_client, set_wp_client
 
 from app.agent.prompts import SYSTEM_PROMPT
 
@@ -36,18 +36,28 @@ def get_circuit_breaker() -> CircuitBreaker:
     return _circuit_breaker
 
 
-def _build_llm():
+def _build_llm(tools: list[Any]):
     config = get_agent_config()
     llm = LLMProviderFactory.create(config)
-    return llm.bind_tools(ALL_TOOLS)
+    return llm.bind_tools(tools)
 
 
 async def agent_node(state: AgentState) -> dict:
-    llm = _build_llm()
+    llm = _build_llm(state.get("tools", []))
 
     messages = state["messages"]
     if not messages or not isinstance(messages[0], SystemMessage):
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + list(messages)
+
+    if not state.get("wp_client"):
+        messages = messages + [
+            SystemMessage(
+                content=(
+                    "WordPress site is not connected for this chat session. "
+                    "Answer normally, but do not attempt to perform WordPress actions."
+                )
+            )
+        ]
 
     remaining = state.get("remaining_steps", 25)
     if remaining <= 3:
@@ -74,15 +84,123 @@ async def tool_node(state: AgentState) -> dict:
         "circuit_breaker_trips": 0,
     })
 
-    tool_map = {t.name: t for t in ALL_TOOLS}
+    tools = state.get("tools", [])
+    tool_map = {t.name: t for t in tools}
     circuit_breaker = get_circuit_breaker()
     config = get_agent_config()
     retry_config = RetryConfig(max_attempts=config.retry_attempts)
+
+    # Tools that mutate WordPress state. These must be explicitly confirmed by the user
+    # before execution.
+    write_tools: set[str] = {
+        "create_page",
+        "update_page",
+        "delete_page",
+        "create_post",
+        "update_post",
+        "delete_post",
+        "upload_media",
+        "delete_media",
+        "bulk_update_pages",
+        "bulk_delete_pages",
+        "bulk_update_posts",
+        "bulk_delete_posts",
+        "bulk_upload_media",
+        "create_menu",
+        "delete_menu",
+        "create_menu_item",
+        "bulk_create_menus",
+        "bulk_create_menu_items",
+        "create_menu_tree",
+        "assign_menu_locations",
+        "wp_cli_menu_create",
+        "wp_cli_menu_location_assign",
+        "wp_cli_menu_item_add_post",
+        "wp_cli_menu_item_add_custom",
+        "create_theme_file",
+        "activate_theme",
+        "wp_cli_activate_theme",
+        "update_acf_fields",
+        "create_category",
+        "create_tag",
+    }
+
+    def _compact_tool_result(value: Any, tool_name: str) -> Any:
+        # Keep ToolMessage payloads small to avoid re-sending huge JSON back to the LLM.
+        if isinstance(value, dict):
+            if "error" in value:
+                return {"error": value.get("error")}
+            if "message" in value and "needs_confirmation" in value:
+                # Keep confirmation payload minimal but functional.
+                out = {
+                    "needs_confirmation": value.get("needs_confirmation"),
+                    "message": value.get("message"),
+                }
+                if "pending_tool_call" in value:
+                    out["pending_tool_call"] = value.get("pending_tool_call")
+                if "next_call" in value:
+                    out["next_call"] = value.get("next_call")
+                if "status" in value:
+                    out["status"] = value.get("status")
+                return out
+
+            # Common list keys: keep only a small sample and light fields.
+            for key in ("pages", "posts", "media", "themes", "menus", "items", "users"):
+                if key in value and isinstance(value[key], list):
+                    items = value[key]
+                    sample = items[:10]
+
+                    def light(obj: Any) -> Any:
+                        if not isinstance(obj, dict):
+                            return obj
+                        keep_keys = ("id", "title", "name", "slug", "link", "status", "url")
+                        return {k: obj.get(k) for k in keep_keys if k in obj}
+
+                    return {
+                        key: [light(x) for x in sample],
+                        "returned": len(sample),
+                        "total": len(items),
+                        "truncated": len(items) > len(sample),
+                    }
+
+        # Strings can be huge (e.g., HTML). Cap them.
+        if isinstance(value, str) and len(value) > 4000:
+            return value[:4000] + "\n...[truncated]"
+        return value
 
     for tc in last_msg.tool_calls:
         func_name = tc["name"]
         func_args = tc["args"]
         start_time = time.time()
+
+        if func_name in write_tools:
+            # Do not execute. Return a structured confirmation request.
+            result = {
+                "needs_confirmation": True,
+                "pending_tool_call": {
+                    "tool": func_name,
+                    "arguments": func_args,
+                },
+                "message": (
+                    "This action will modify WordPress content. "
+                    "Reply with 'yes' to proceed or 'no' to cancel."
+                ),
+            }
+            status = "pending_confirmation"
+            content = json.dumps(result)
+            tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
+            duration_ms = (time.time() - start_time) * 1000
+            execution_metadata["total_tool_calls"] += 1
+            executed.append(
+                {
+                    "name": func_name,
+                    "arguments": func_args,
+                    "result": result,
+                    "status": status,
+                    "duration_ms": duration_ms,
+                }
+            )
+            continue
 
         try:
             tool_func = tool_map.get(func_name)
@@ -117,7 +235,8 @@ async def tool_node(state: AgentState) -> dict:
             result = error_response.to_dict()
             status = "error"
 
-        content = json.dumps(result) if isinstance(result, dict) else str(result)
+        compact = _compact_tool_result(result, func_name)
+        content = json.dumps(compact) if isinstance(compact, dict) else str(compact)
         tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
 
         duration_ms = (time.time() - start_time) * 1000
@@ -167,7 +286,14 @@ async def run_agent(
     thread_id: str | None = None,
     llm_provider: str | None = None,
 ) -> dict:
-    set_wp_client(wp_client)
+    wp_token = set_wp_client(wp_client)
+
+    # Bind both read and write tools when WordPress is connected so the LLM knows
+    # which capabilities exist. Actual write execution is still gated by tool_node,
+    # which returns a confirmation request instead of executing.
+    tools: list[Any] = []
+    if wp_client is not None:
+        tools = list(READ_TOOLS) + list(WRITE_TOOLS)
 
     if not thread_id:
         thread_id = str(uuid.uuid4())
@@ -178,7 +304,10 @@ async def run_agent(
         logger.info(f"Using LLM provider: {llm_provider}")
 
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
-    for msg in history:
+
+    # Keep a small rolling history window to reduce prompt tokens.
+    history_window = 10
+    for msg in history[-history_window:]:
         if msg["role"] == "user":
             messages.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":
@@ -198,23 +327,27 @@ async def run_agent(
 
     graph = build_agent_graph()
     try:
-        result = await graph.ainvoke(
-            {
-                "messages": messages,
-                "wp_client": wp_client,
-                "tool_calls_executed": [],
-                "execution_metadata": execution_metadata,
-                "config": {"thread_id": thread_id},
-            },
-            config={"recursion_limit": config.recursion_limit},
-        )
-    except Exception as e:
-        logger.error(f"Agent execution failed: {e}", exc_info=True)
-        return {
-            "response": f"⚠️ Agent execution failed: {str(e)}",
-            "tool_calls": [],
-            "error": str(e),
-        }
+        try:
+            result = await graph.ainvoke(
+                {
+                    "messages": messages,
+                    "wp_client": wp_client,
+                    "tools": tools,
+                    "tool_calls_executed": [],
+                    "execution_metadata": execution_metadata,
+                    "config": {"thread_id": thread_id},
+                },
+                config={"recursion_limit": config.recursion_limit},
+            )
+        except Exception as e:
+            logger.error(f"Agent execution failed: {e}", exc_info=True)
+            return {
+                "response": f"⚠️ Agent execution failed: {str(e)}",
+                "tool_calls": [],
+                "error": str(e),
+            }
+    finally:
+        reset_wp_client(wp_token)
 
     final_messages = result["messages"]
     final_response = ""

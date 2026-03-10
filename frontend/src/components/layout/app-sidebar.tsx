@@ -1,12 +1,13 @@
-import { Layers, Plus, MessageSquare, Trash2, Plug } from 'lucide-react'
+import { Plus, MessageSquare, Trash2, Plug, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChatStore } from '@/stores/chat-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { useEffect } from 'react'
+import { Link } from 'react-router'
 import {
     Sidebar,
     SidebarContent,
-    SidebarFooter,
     SidebarGroup,
     SidebarGroupContent,
     SidebarGroupLabel,
@@ -15,10 +16,14 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarMenuAction,
+    SidebarTrigger,
+    SidebarFooter,
+    useSidebar,
 } from '@/components/ui/sidebar'
 
 export function AppSidebar() {
     const { toggleConnectorsPanel, connectorsPanelOpen } = useSidebarStore()
+    const { state, isMobile } = useSidebar()
     const {
         conversations,
         conversationId,
@@ -38,32 +43,54 @@ export function AppSidebar() {
     }
 
     return (
-        <Sidebar collapsible="offcanvas">
-            <SidebarHeader className="border-b border-sidebar-border h-[60px] p-0">
-                <div className="flex items-center gap-2.5 px-5 h-full">
-                    <div className="flex items-center justify-center h-8 w-8 shrink-0">
-                        <Layers className="h-7 w-7 text-black" strokeWidth={2.5} />
-                    </div>
-                    <span className="text-lg font-bold text-black tracking-tight whitespace-nowrap flex-1">
-                        WP Agent
-                    </span>
+        <Sidebar collapsible="icon">
+            <SidebarHeader className="border-sidebar-border h-[60px] p-0 flex flex-row items-center justify-between px-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 transition-all duration-200 gap-0 shrink-0">
+                <div className="flex items-center group-data-[collapsible=icon]:hidden">
+                    <span className="text-sm tracking-wider leading-none uppercase font-medium text-foreground">Agent</span>
                 </div>
+                <SidebarTrigger />
             </SidebarHeader>
 
             <SidebarContent>
                 <SidebarGroup className="px-0">
-                    <div className="px-2 pb-2">
-                        <Button
-                            onClick={startNewChat}
-                            className="w-full justify-center gap-2 bg-primary hover:bg-primary/90 text-black font-medium rounded-lg h-11"
-                        >
-                            <Plus className="h-5 w-5" strokeWidth={2.5} />
-                            New Chat
-                        </Button>
+                    <div className="px-2 flex flex-col gap-2 pb-2">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    onClick={toggleConnectorsPanel}
+                                    className="w-full justify-start gap-2.5 h-9 px-3 hover:bg-sidebar-accent text-black font-medium group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                                >
+                                    <Plug className="h-4 w-4" strokeWidth={2} />
+                                    <span className="group-data-[collapsible=icon]:hidden">Connectors</span>
+                                    {connectorsPanelOpen && (
+                                        <span className="ml-auto h-2 w-2 rounded-full bg-green-500 shrink-0 group-data-[collapsible=icon]:hidden" />
+                                    )}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" align="center" hidden={state !== 'collapsed' || isMobile}>
+                                Connectors
+                            </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    onClick={startNewChat}
+                                    className="w-full justify-center gap-2 bg-primary hover:bg-primary/90 text-black font-medium rounded-lg group-data-[collapsible=icon]:rounded-xl h-10 group-data-[collapsible=icon]:px-0"
+                                >
+                                    <Plus className="h-5 w-5" strokeWidth={2.5} />
+                                    <span className="group-data-[collapsible=icon]:hidden">New Chat</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" align="center" hidden={state !== 'collapsed' || isMobile}>
+                                New Chat
+                            </TooltipContent>
+                        </Tooltip>
                     </div>
                 </SidebarGroup>
 
-                <SidebarGroup className="px-0">
+                <SidebarGroup className="px-0 group-data-[collapsible=icon]:hidden">
                     <SidebarGroupLabel className="px-2">Recent</SidebarGroupLabel>
                     <SidebarGroupContent>
                         <SidebarMenu>
@@ -77,9 +104,10 @@ export function AppSidebar() {
                                         <SidebarMenuButton
                                             onClick={() => handleConversationClick(convo.id)}
                                             isActive={convo.id === conversationId}
+                                            tooltip={convo.title}
                                         >
                                             <MessageSquare className="h-4 w-4" strokeWidth={2} />
-                                            <span>{convo.title}</span>
+                                            <span className="group-data-[collapsible=icon]:hidden">{convo.title}</span>
                                         </SidebarMenuButton>
                                         <SidebarMenuAction
                                             onClick={(e) => {
@@ -99,25 +127,19 @@ export function AppSidebar() {
                 </SidebarGroup>
             </SidebarContent>
 
-            <SidebarFooter className="border-t border-sidebar-border bg-sidebar-accent/50 p-0">
-                <SidebarGroup className="p-0 pt-2">
-                    <SidebarGroupLabel className="px-2">Tools</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <div className="flex flex-col gap-2 px-2 pb-2">
-                            <Button
-                                variant="ghost"
-                                onClick={toggleConnectorsPanel}
-                                className="w-full justify-start gap-2.5 h-9 px-3 hover:bg-sidebar-accent text-black font-medium"
-                            >
-                                <Plug className="h-4 w-4" strokeWidth={2} />
-                                <span>Connectors</span>
-                                {connectorsPanelOpen && (
-                                    <span className="ml-auto h-2 w-2 rounded-full bg-green-500 shrink-0" />
-                                )}
-                            </Button>
-                        </div>
-                    </SidebarGroupContent>
-                </SidebarGroup>
+            <SidebarFooter className="px-2 group-data-[collapsible=icon]:px-0">
+                <SidebarMenu>
+                    <SidebarMenuItem className="flex justify-start group-data-[collapsible=icon]:justify-center">
+                        <SidebarMenuButton asChild tooltip="Profile" className="group-data-[collapsible=icon]:justify-center">
+                            <Link to="/profile">
+                                <div className="flex items-center justify-center h-7 w-7 rounded-full bg-muted shrink-0">
+                                    <User className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={2.5} />
+                                </div>
+                                <span className="group-data-[collapsible=icon]:hidden">Profile</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
             </SidebarFooter>
         </Sidebar>
     )

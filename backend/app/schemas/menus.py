@@ -52,7 +52,8 @@ class MenuTreeItem(BaseModel):
 
 
 class CreateMenuTreeRequest(BaseModel):
-    menu_name: str
+    menu_name: str | None = None
+    menu_id: int | None = None
     items: list[MenuTreeItem]
 
 

@@ -18,6 +18,10 @@ class CreatePageInput(BaseModel):
     title: str = Field(description="Page title")
     content: str = Field(description="HTML content")
     status: str = Field(default="publish", description="Post status")
+    allow_duplicate: bool = Field(
+        default=False,
+        description="If false, the tool will ask for confirmation when a page with the same title/slug already exists.",
+    )
 
 
 class UpdatePageInput(BaseModel):
@@ -129,6 +133,11 @@ class BulkUploadMediaInput(BaseModel):
 
 
 class ListMenusInput(BaseModel):
+    """List WordPress navigation menus.
+
+    Note: Requires WordPress 5.9+ for native REST API menu endpoints.
+    WordPress 6.8+ allows public menu access without authentication.
+    """
     per_page: int = Field(default=100, description="Number of menus per request")
 
 
@@ -149,8 +158,8 @@ class ListMenuItemsInput(BaseModel):
 class CreateMenuItemInput(BaseModel):
     menu_id: int = Field(description="Menu ID")
     title: str = Field(description="Menu item title")
-    type: str = Field(default="custom", description="Menu item type")
-    url: Optional[str] = Field(default=None, description="URL for custom link")
+    type: str = Field(default="custom", description="Menu item type. If type='custom', url is required.")
+    url: Optional[str] = Field(default=None, description="URL for custom link (required when type='custom')")
     object_id: Optional[int] = Field(default=None, description="Linked object ID")
     object: Optional[str] = Field(default=None, description="Linked object type")
     parent: Optional[int] = Field(default=0, description="Parent menu item ID")
@@ -167,7 +176,8 @@ class BulkCreateMenuItemsInput(BaseModel):
 
 
 class CreateMenuTreeInput(BaseModel):
-    menu_name: str = Field(description="Menu name")
+    menu_name: Optional[str] = Field(default=None, description="Menu name (required if menu_id is not provided)")
+    menu_id: Optional[int] = Field(default=None, description="Existing menu ID to append items into")
     items: list[dict] = Field(description="Tree items, each item may include children")
 
 
@@ -212,3 +222,35 @@ class ListMenuLocationsInput(BaseModel):
 class AssignMenuLocationsInput(BaseModel):
     menu_id: int = Field(description="Menu term ID")
     locations: list[str] = Field(description="List of theme menu location slugs")
+
+
+class WpCliMenuCreateInput(BaseModel):
+    name: str = Field(description="Menu name")
+    porcelain: bool = Field(default=True, description="Return only the created menu id")
+
+
+class WpCliMenuLocationListInput(BaseModel):
+    format: str = Field(default="json", description="Output format: table|csv|json|yaml")
+
+
+class WpCliMenuLocationAssignInput(BaseModel):
+    menu: str = Field(description="Menu name, slug, or term ID")
+    location: str = Field(description="Theme menu location slug")
+
+
+class WpCliMenuItemAddPostInput(BaseModel):
+    menu: str = Field(description="Menu name, slug, or term ID")
+    post_id: int = Field(description="Post/Page ID")
+    title: Optional[str] = Field(default=None, description="Optional menu label")
+    position: Optional[int] = Field(default=None, description="Optional menu order")
+    parent_id: Optional[int] = Field(default=None, description="Optional parent menu item ID")
+    porcelain: bool = Field(default=True, description="Return only the created menu item id")
+
+
+class WpCliMenuItemAddCustomInput(BaseModel):
+    menu: str = Field(description="Menu name, slug, or term ID")
+    title: str = Field(description="Menu label")
+    link: str = Field(description="Target URL")
+    position: Optional[int] = Field(default=None, description="Optional menu order")
+    parent_id: Optional[int] = Field(default=None, description="Optional parent menu item ID")
+    porcelain: bool = Field(default=True, description="Return only the created menu item id")

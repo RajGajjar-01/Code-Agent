@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LogOut, FolderOpen, Loader2, ChevronRight, X, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DriveFileList } from '@/components/drive/drive-file-list'
 import { useAuthStore } from '@/stores/auth-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { useChatStore } from '@/stores/chat-store'
+import { useUserStore } from '@/stores/user-store'
 import { authApi, wpCliApi, wpSitesApi } from '@/lib/axios'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -31,6 +32,7 @@ export function ConnectorsPanel() {
 
     const { connectorsPanelOpen, toggleConnectorsPanel } = useSidebarStore()
     const { loadConversations } = useChatStore()
+    const { isAuthenticated, email } = useUserStore()
 
     const {
         wpCliWpPath,
@@ -53,6 +55,8 @@ export function ConnectorsPanel() {
     const [wpSiteAppPassword, setWpSiteAppPassword] = useState('')
     const [wpSiteSaving, setWpSiteSaving] = useState(false)
 
+    const wpSitesFetchInFlightRef = useRef(false)
+
     const wpCliPathTrimmed = (wpCliWpPath || '').trim()
 
     useEffect(() => {
@@ -72,10 +76,11 @@ export function ConnectorsPanel() {
 
     useEffect(() => {
         if (!connectorsPanelOpen) return
-        if (!userEmail) return
-        if (wpSitesLoading) return
+        if (!isAuthenticated || !email) return
+        if (wpSitesFetchInFlightRef.current) return
 
         ;(async () => {
+            wpSitesFetchInFlightRef.current = true
             setWpSitesLoading(true)
             try {
                 const { data } = await wpSitesApi.list()
@@ -87,9 +92,10 @@ export function ConnectorsPanel() {
                 setWpSites([])
             } finally {
                 setWpSitesLoading(false)
+                wpSitesFetchInFlightRef.current = false
             }
         })()
-    }, [connectorsPanelOpen, userEmail, wpSitesLoading, activeWpSiteId, setActiveWpSiteId])
+    }, [connectorsPanelOpen, isAuthenticated, email, activeWpSiteId, setActiveWpSiteId])
 
     const handleFolderClick = (id: string, name: string) => {
         useAuthStore.setState((s) => ({

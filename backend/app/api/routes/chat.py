@@ -1,6 +1,7 @@
 import uuid
 import logging
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy import select
@@ -31,6 +32,8 @@ from app.services.conversation import (
     soft_delete_conversation,
 )
 from app.services.wordpress import WordPressClient
+from app.agent.errors import create_error_response
+from app.agent.tools import ALL_TOOLS, reset_wp_client, set_wp_client
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +132,7 @@ async def chat(
 ):
     """Process a chat message and persist both results to the DB."""
     # Verify the user_email matches the authenticated user
-    if request.user_email and request.user_email != current_user.email:
+    if request.user_email is not None and request.user_email != current_user.email:
         logger.warning(
             f"User {current_user.email} attempted to send message as {request.user_email}"
         )
@@ -162,25 +165,21 @@ async def chat(
             created_client = WordPressClient(site.base_url, site.username, app_password)
             wp_for_request = created_client
 
-        if wp_for_request is None:
-            raise HTTPException(
-                status_code=400,
-                detail="No WordPress site selected. Connect a site and set it as Active, then retry.",
-            )
-
-        # Fast connectivity/auth check: do not invoke the agent if the selected site is unreachable.
-        try:
-            resp = await wp_for_request.client.get(f"{wp_for_request.base_url}/wp-json", timeout=5.0)
-        except Exception:
-            raise HTTPException(
-                status_code=400,
-                detail="Selected WordPress site is not reachable/active. Please verify the site URL and that it is running, then try again.",
-            )
-        if resp.status_code >= 400:
-            raise HTTPException(
-                status_code=400,
-                detail="Selected WordPress site is not reachable/active or credentials are invalid. Please verify the site URL and application password, then try again.",
-            )
+        # If a WordPress site is selected, do a fast connectivity/auth check.
+        # If no site is selected, we still allow general chat (tools will be disabled at the agent layer).
+        if wp_for_request is not None:
+            try:
+                resp = await wp_for_request.client.get(f"{wp_for_request.base_url}/wp-json", timeout=5.0)
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Selected WordPress site is not reachable/active. Please verify the site URL and that it is running, then try again.",
+                )
+            if resp.status_code >= 400:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Selected WordPress site is not reachable/active or credentials are invalid. Please verify the site URL and application password, then try again.",
+                )
 
         # 1. Resolve / create conversation using authenticated user's email
         convo = await get_or_create_conversation(
@@ -190,8 +189,129 @@ async def chat(
             first_message=request.message,
         )
 
+        def _extract_pending_tool_call() -> dict[str, Any] | None:
+            if not convo.messages:
+                return None
+            last = convo.messages[-1]
+            if last.role != "assistant":
+                return None
+            tc = last.tool_calls or {}
+            calls = tc.get("calls") if isinstance(tc, dict) else None
+            if not isinstance(calls, list) or not calls:
+                return None
+            # Find the most recent pending confirmation tool call.
+            for c in reversed(calls):
+                if not isinstance(c, dict):
+                    continue
+                if c.get("status") != "pending_confirmation":
+                    continue
+                result = c.get("result")
+                if isinstance(result, dict) and isinstance(result.get("pending_tool_call"), dict):
+                    return result["pending_tool_call"]
+            return None
+
+        def _is_yes(msg: str) -> bool:
+            return (msg or "").strip().lower() in {"y", "yes", "ok", "okay", "confirm", "proceed"}
+
+        def _is_no(msg: str) -> bool:
+            return (msg or "").strip().lower() in {"n", "no", "cancel", "stop"}
+
+        pending = _extract_pending_tool_call()
+        if pending is not None and (_is_yes(request.message) or _is_no(request.message)):
+            if _is_no(request.message):
+                result = {
+                    "response": "Cancelled. No changes were made.",
+                    "tool_calls": [],
+                }
+            else:
+                tool_name = pending.get("tool")
+                tool_args = pending.get("arguments") or {}
+
+                tool_map = {t.name: t for t in (ALL_TOOLS if wp_for_request is not None else [])}
+                tool_func = tool_map.get(tool_name)
+                if not tool_func:
+                    result = {
+                        "response": f"⚠️ Pending action failed: tool '{tool_name}' not found.",
+                        "tool_calls": [
+                            {
+                                "name": tool_name,
+                                "arguments": tool_args,
+                                "status": "error",
+                                "result": {"error": f"Tool '{tool_name}' not found."},
+                            }
+                        ],
+                    }
+                else:
+                    wp_token = set_wp_client(wp_for_request)
+                    try:
+                        out = await tool_func.ainvoke(tool_args)
+                        result = {
+                            "response": "Done.",
+                            "tool_calls": [
+                                {
+                                    "name": tool_name,
+                                    "arguments": tool_args,
+                                    "status": "success",
+                                    "result": out if isinstance(out, dict) else {"output": str(out)},
+                                }
+                            ],
+                        }
+                    except Exception as e:
+                        err = create_error_response(e, context=f"Calling {tool_name}").to_dict()
+                        result = {
+                            "response": f"⚠️ {err.get('message') or str(e)}",
+                            "tool_calls": [
+                                {
+                                    "name": tool_name,
+                                    "arguments": tool_args,
+                                    "status": "error",
+                                    "result": err,
+                                }
+                            ],
+                        }
+                    finally:
+                        reset_wp_client(wp_token)
+
+            await append_messages(
+                db,
+                conversation_id=convo.id,
+                user_content=request.message,
+                user_tool_calls={"attachments": [a.model_dump() for a in (request.attachments or [])]}
+                if request.attachments
+                else None,
+                assistant_content=result["response"],
+                tool_calls=result.get("tool_calls") or [],
+            )
+            await db.commit()
+
+            return ChatResponse(
+                response=result["response"],
+                tool_calls=result.get("tool_calls") or [],
+                conversation_id=str(convo.id),
+            )
+
         # 2. Build history from persisted messages
-        history = [{"role": m.role, "content": m.content} for m in convo.messages]
+        user_count = 0
+        assistant_count = 0
+        trimmed: list[dict] = []
+        for m in reversed(convo.messages):
+            if m.role == "user":
+                if user_count >= 5:
+                    continue
+                user_count += 1
+            elif m.role == "assistant":
+                if assistant_count >= 5:
+                    continue
+                assistant_count += 1
+            else:
+                continue
+
+            trimmed.append({"role": m.role, "content": m.content})
+
+            if user_count >= 5 and assistant_count >= 5:
+                break
+
+        history = list(reversed(trimmed))
 
         attachments = request.attachments or []
         attachment_context = ""

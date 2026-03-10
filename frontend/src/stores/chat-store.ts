@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { chatApi } from '@/lib/axios'
+import axios from 'axios'
 import type { AttachmentRef, Conversation, Message, ToolCall } from '@/types'
 import { useUserStore } from './user-store'
 import { useSettingsStore } from './settings-store'
@@ -140,21 +141,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         } catch (err) {
             let errorMessage = 'Unknown error'
             
-            if (err instanceof Error) {
-                errorMessage = err.message
+            if (axios.isAxiosError(err)) {
+                const detail = (err.response?.data as { detail?: string } | undefined)?.detail
+                errorMessage = detail || err.message || errorMessage
                 
                 // Handle authentication errors
-                if (err.message.includes('Authentication required')) {
+                if ((errorMessage || '').includes('Authentication required')) {
                     toast.error('Please log in to send messages')
                     set({ isLoading: false })
                     window.location.href = '/login'
                     return
                 }
+            } else if (err instanceof Error) {
+                errorMessage = err.message
             }
             
             const errorMsg: Message = {
                 role: 'assistant',
-                content: `⚠️ Error: ${errorMessage}. Make sure the backend is running.`,
+                content: `⚠️ Error: ${errorMessage}`,
             }
             set((s) => ({ messages: [...s.messages, errorMsg] }))
             toast.error('Failed to send message')

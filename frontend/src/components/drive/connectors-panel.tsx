@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogOut, FolderOpen, Loader2, ChevronRight, X, Trash2 } from 'lucide-react'
+import { LogOut, FolderOpen, Loader2, ChevronRight, X, Trash2, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DriveFileList } from '@/components/drive/drive-file-list'
 import { useAuthStore } from '@/stores/auth-store'
@@ -45,6 +45,7 @@ export function ConnectorsPanel() {
     const [wpCliOpen, setWpCliOpen] = useState(false)
     const [wpCliValidating, setWpCliValidating] = useState(false)
     const [wpCliValidated, setWpCliValidated] = useState(false)
+    const [wpCliDiscovering, setWpCliDiscovering] = useState(false)
 
     const [wpSites, setWpSites] = useState<WordPressSite[]>([])
     const [wpSitesLoading, setWpSitesLoading] = useState(false)
@@ -96,6 +97,28 @@ export function ConnectorsPanel() {
             }
         })()
     }, [connectorsPanelOpen, isAuthenticated, email, activeWpSiteId, setActiveWpSiteId])
+
+    const handleDiscoverPath = async () => {
+        setWpCliDiscovering(true)
+        try {
+            const { data } = await wpCliApi.discoverPath()
+            if (data.found && data.path) {
+                setWpCliWpPath(data.path)
+                setWpCliValidated(true)
+                if (data.source === 'local_by_flywheel') {
+                    toast.success(`Found Local site "${data.site_name}" at: ${data.path}`)
+                } else {
+                    toast.success(`Found WordPress at: ${data.path}`)
+                }
+            } else {
+                toast.error(data.message || 'WordPress installation not found')
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.detail || 'Failed to discover WordPress path')
+        } finally {
+            setWpCliDiscovering(false)
+        }
+    }
 
     const handleFolderClick = (id: string, name: string) => {
         useAuthStore.setState((s) => ({
@@ -417,15 +440,31 @@ export function ConnectorsPanel() {
                         <div className="mt-4 space-y-3">
                             <div className="space-y-1.5">
                                 <label className="text-xs font-medium text-foreground">WP filesystem path</label>
-                                <Input
-                                    placeholder="/var/www/html"
-                                    value={wpCliWpPath}
-                                    onChange={(e) => {
-                                        setWpCliValidated(false)
-                                        setWpCliWpPath(e.target.value)
-                                    }}
-                                    className="h-9"
-                                />
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="/var/www/html"
+                                        value={wpCliWpPath}
+                                        onChange={(e) => {
+                                            setWpCliValidated(false)
+                                            setWpCliWpPath(e.target.value)
+                                        }}
+                                        className="h-9 flex-1"
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={handleDiscoverPath}
+                                        disabled={wpCliDiscovering}
+                                        className="h-9 w-9 shrink-0"
+                                        title="Auto-detect WordPress path"
+                                    >
+                                        {wpCliDiscovering ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Search className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                </div>
                                 <p className="text-[0.72rem] text-muted-foreground">
                                     Folder that contains <span className="font-mono">wp-config.php</span>
                                 </p>

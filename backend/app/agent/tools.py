@@ -58,6 +58,10 @@ from app.agent.tools_schema import (
     WpCliMenuLocationListInput,
     WpCliMenuItemAddCustomInput,
     WpCliMenuItemAddPostInput,
+    WpCliScaffoldThemeInput,
+    WpCliScaffoldPostTypeInput,
+    WpCliScaffoldTaxonomyInput,
+    WpCliThemeDeleteInput,
 )
 
 _wp_client_var: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
@@ -134,6 +138,96 @@ def set_wp_cli_context(wp_path: str | None = None, default_url: str | None = Non
     _wp_cli_default_url_override = default_url
 
 
+def _find_wordpress_path(start_path: str | Path | None = None) -> Path | None:
+    """
+    Search upward from start_path to find a WordPress installation.
+    
+    Looks for wp-config.php in current directory and all parent directories.
+    Returns the first directory containing wp-config.php, or None if not found.
+    
+    Similar to how git finds .git directories.
+    """
+    if start_path is None:
+        start_path = Path.cwd()
+    else:
+        start_path = Path(start_path).resolve()
+    
+    current = start_path
+    while True:
+        if (current / "wp-config.php").exists():
+            return current
+        
+        parent = current.parent
+        if parent == current:  # Reached root
+            return None
+        current = parent
+    
+    return None
+
+
+def discover_wordpress_path() -> dict:
+    """
+    Discover WordPress installation path.
+    
+    Returns dict with found path or error message.
+    Useful for API endpoints that need to validate/preview discovery.
+    """
+    # 1. Try upward search from current directory
+    discovered = _find_wordpress_path()
+    if discovered:
+        return {
+            "found": True,
+            "path": str(discovered),
+            "wp_config_exists": (discovered / "wp-config.php").exists(),
+            "source": "cwd_search",
+        }
+    
+    # 2. Search Local by Flywheel common locations
+    home = Path.home()
+    local_sites = home / "Local Sites"
+    if local_sites.exists():
+        for site_dir in local_sites.iterdir():
+            if site_dir.is_dir():
+                wp_path = site_dir / "app" / "public"
+                if (wp_path / "wp-config.php").exists():
+                    return {
+                        "found": True,
+                        "path": str(wp_path),
+                        "wp_config_exists": True,
+                        "source": "local_by_flywheel",
+                        "site_name": site_dir.name,
+                    }
+    
+    # 3. Search other common locations
+    common_paths = [
+        "/var/www/html",
+        "/var/www",
+        "/opt/lampp/htdocs",
+        "/usr/share/nginx/html",
+        home / "www",
+        home / "sites",
+        home / "public_html",
+    ]
+    for base_path in common_paths:
+        base = Path(base_path)
+        if base.exists():
+            for wp_dir in base.iterdir():
+                if wp_dir.is_dir() and (wp_dir / "wp-config.php").exists():
+                    return {
+                        "found": True,
+                        "path": str(wp_dir),
+                        "wp_config_exists": True,
+                        "source": "common_path",
+                    }
+    
+    return {
+        "found": False,
+        "path": None,
+        "cwd": str(Path.cwd()),
+        "message": "No WordPress installation found. Searched: current directory tree, Local by Flywheel sites, and common web roots.",
+    }
+
+
 def _client():
     client = _wp_client_var.get()
     if not client:
@@ -159,10 +253,17 @@ def _get_wp_cli_args() -> tuple[str, list[str]]:
                 wp_bin = str(local_path)
 
     wp_path = _wp_cli_wp_path_override or config.wp_cli_wp_path
+    
     if not wp_path:
-        raise RuntimeError(
-            "WP-CLI path not configured. Provide WP_CLI_WP_PATH (path containing wp-config.php)."
-        )
+        # Auto-discover WordPress installation
+        discovered = _find_wordpress_path()
+        if discovered:
+            wp_path = str(discovered)
+        else:
+            raise RuntimeError(
+                "WP-CLI path not configured and no WordPress installation found. "
+                "Provide WP_CLI_WP_PATH (path containing wp-config.php) or run from within a WordPress directory."
+            )
 
     wp_path_obj = Path(wp_path)
     if not (wp_path_obj / "wp-config.php").exists():
@@ -515,6 +616,129 @@ async def _wp_cli_menu_item_add_custom(
         except Exception:
             menu_item_id = None
     return {"menu_item_id": menu_item_id, "stdout": res.get("stdout"), "stderr": res.get("stderr")}
+
+
+async def _wp_cli_scaffold_theme(
+    theme_slug: str,
+    theme_name: str | None = None,
+    author: str | None = None,
+    author_uri: str | None = None,
+    theme_uri: str | None = None,
+    sassify: bool = True,
+    activate: bool = False,
+    force: bool = False,
+) -> dict:
+    """
+    Scaffold a classic WordPress theme using WP-CLI scaffold _s command.
+    
+    This creates a complete theme based on Underscores (_s) starter theme
+    with all required files following WordPress best practices.
+    """
+    cmd: list[str] = ["scaffold", "_s", theme_slug]
+    
+    if theme_name:
+        cmd.append(f"--theme_name={theme_name}")
+    if author:
+        cmd.append(f"--author={author}")
+    if author_uri:
+        cmd.append(f"--author_uri={author_uri}")
+    if theme_uri:
+        cmd.append(f"--theme_uri={theme_uri}")
+    if sassify:
+        cmd.append("--sassify")
+    if activate:
+        cmd.append("--activate")
+    if force:
+        cmd.append("--force")
+    
+    res = await _run_wp_cli(cmd)
+    return {
+        "status": "created",
+        "theme_slug": theme_slug,
+        "theme_name": theme_name or theme_slug,
+        "sassify": sassify,
+        "activated": activate,
+        "stdout": res.get("stdout"),
+        "message": f"Theme '{theme_name or theme_slug}' created successfully."
+    }
+
+
+async def _wp_cli_scaffold_post_type(
+    post_type: str,
+    label: str | None = None,
+    theme: str | None = None,
+    dashicon: str | None = None,
+    textdomain: str | None = None,
+) -> dict:
+    """
+    Scaffold a custom post type using WP-CLI.
+    
+    Generates PHP code for registering a custom post type.
+    If theme is provided, saves to theme directory; otherwise outputs to stdout.
+    """
+    cmd: list[str] = ["scaffold", "post-type", post_type]
+    
+    if label:
+        cmd.append(f"--label={label}")
+    if theme:
+        cmd.append(f"--theme={theme}")
+    if dashicon:
+        cmd.append(f"--dashicon={dashicon}")
+    if textdomain:
+        cmd.append(f"--textdomain={textdomain}")
+    
+    res = await _run_wp_cli(cmd)
+    return {
+        "status": "created",
+        "post_type": post_type,
+        "label": label or post_type,
+        "theme": theme,
+        "stdout": res.get("stdout"),
+        "message": f"Custom post type '{post_type}' scaffolded."
+    }
+
+
+async def _wp_cli_scaffold_taxonomy(
+    taxonomy: str,
+    post_types: str,
+    label: str | None = None,
+    theme: str | None = None,
+) -> dict:
+    """
+    Scaffold a custom taxonomy using WP-CLI.
+    
+    Generates PHP code for registering a custom taxonomy.
+    """
+    cmd: list[str] = ["scaffold", "taxonomy", taxonomy, f"--post_types={post_types}"]
+    
+    if label:
+        cmd.append(f"--label={label}")
+    if theme:
+        cmd.append(f"--theme={theme}")
+    
+    res = await _run_wp_cli(cmd)
+    return {
+        "status": "created",
+        "taxonomy": taxonomy,
+        "post_types": post_types,
+        "label": label or taxonomy,
+        "theme": theme,
+        "stdout": res.get("stdout"),
+        "message": f"Taxonomy '{taxonomy}' scaffolded for post types: {post_types}."
+    }
+
+
+async def _wp_cli_theme_delete(theme_slug: str) -> dict:
+    """
+    Delete a WordPress theme using WP-CLI.
+    """
+    res = await _run_wp_cli(["theme", "delete", theme_slug, "--force"])
+    return {
+        "status": "deleted",
+        "theme_slug": theme_slug,
+        "stdout": res.get("stdout"),
+        "message": f"Theme '{theme_slug}' deleted."
+    }
 
 
 async def _list_menu_locations() -> dict:
@@ -942,6 +1166,52 @@ wp_cli_menu_item_add_custom = StructuredTool.from_function(
     coroutine=_wp_cli_menu_item_add_custom,
 )
 
+wp_cli_scaffold_theme = StructuredTool.from_function(
+    func=_wp_cli_scaffold_theme,
+    name="wp_cli_scaffold_theme",
+    description=(
+        "Create a complete WordPress classic theme using WP-CLI scaffold _s. "
+        "Generates all required files (style.css, index.php, functions.php, etc.) "
+        "based on the Underscores (_s) starter theme. "
+        "Use sassify=True for SASS support. "
+        "Use activate=True to immediately activate the theme."
+    ),
+    args_schema=WpCliScaffoldThemeInput,
+    coroutine=_wp_cli_scaffold_theme,
+)
+
+wp_cli_scaffold_post_type = StructuredTool.from_function(
+    func=_wp_cli_scaffold_post_type,
+    name="wp_cli_scaffold_post_type",
+    description=(
+        "Scaffold a custom post type registration using WP-CLI. "
+        "Generates PHP code for register_post_type(). "
+        "Provide theme slug to save the file in the theme directory."
+    ),
+    args_schema=WpCliScaffoldPostTypeInput,
+    coroutine=_wp_cli_scaffold_post_type,
+)
+
+wp_cli_scaffold_taxonomy = StructuredTool.from_function(
+    func=_wp_cli_scaffold_taxonomy,
+    name="wp_cli_scaffold_taxonomy",
+    description=(
+        "Scaffold a custom taxonomy registration using WP-CLI. "
+        "Generates PHP code for register_taxonomy(). "
+        "Provide theme slug to save the file in the theme directory."
+    ),
+    args_schema=WpCliScaffoldTaxonomyInput,
+    coroutine=_wp_cli_scaffold_taxonomy,
+)
+
+wp_cli_theme_delete = StructuredTool.from_function(
+    func=_wp_cli_theme_delete,
+    name="wp_cli_theme_delete",
+    description="Delete a WordPress theme by its slug using WP-CLI.",
+    args_schema=WpCliThemeDeleteInput,
+    coroutine=_wp_cli_theme_delete,
+)
+
 list_menu_locations = StructuredTool.from_function(
     func=_list_menu_locations,
     name="list_menu_locations",
@@ -1074,6 +1344,10 @@ ALL_TOOLS = [
     wp_cli_menu_location_assign,
     wp_cli_menu_item_add_post,
     wp_cli_menu_item_add_custom,
+    wp_cli_scaffold_theme,
+    wp_cli_scaffold_post_type,
+    wp_cli_scaffold_taxonomy,
+    wp_cli_theme_delete,
     # Site
     get_site_info,
     # Menus
@@ -1159,6 +1433,10 @@ WRITE_TOOLS = [
     wp_cli_menu_location_assign,
     wp_cli_menu_item_add_post,
     wp_cli_menu_item_add_custom,
+    wp_cli_scaffold_theme,
+    wp_cli_scaffold_post_type,
+    wp_cli_scaffold_taxonomy,
+    wp_cli_theme_delete,
     # Menus
     assign_menu_locations,
     create_menu,

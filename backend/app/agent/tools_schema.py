@@ -254,3 +254,86 @@ class WpCliMenuItemAddCustomInput(BaseModel):
     position: Optional[int] = Field(default=None, description="Optional menu order")
     parent_id: Optional[int] = Field(default=None, description="Optional parent menu item ID")
     porcelain: bool = Field(default=True, description="Return only the created menu item id")
+
+
+class WpCliScaffoldThemeInput(BaseModel):
+    """Input for WP-CLI scaffold _s command to create a classic theme."""
+    theme_slug: str = Field(
+        description="Theme directory slug (lowercase, hyphens, no spaces). Used for function prefixes."
+    )
+    theme_name: Optional[str] = Field(
+        default=None,
+        description="Human-readable theme name for style.css header. Defaults to slug if not provided."
+    )
+    author: Optional[str] = Field(
+        default=None,
+        description="Author name for style.css header"
+    )
+    author_uri: Optional[str] = Field(
+        default=None,
+        description="Author website URL"
+    )
+    theme_uri: Optional[str] = Field(
+        default=None,
+        description="Theme website URL"
+    )
+    sassify: bool = Field(
+        default=True,
+        description="Include SASS/SCSS stylesheets instead of plain CSS"
+    )
+    activate: bool = Field(
+        default=False,
+        description="Activate the theme immediately after creation"
+    )
+    force: bool = Field(
+        default=False,
+        description="Overwrite existing theme files if theme already exists"
+    )
+
+
+class WpCliScaffoldPostTypeInput(BaseModel):
+    """Input for WP-CLI scaffold post-type command."""
+    post_type: str = Field(
+        description="Custom post type slug (lowercase, no spaces)"
+    )
+    label: Optional[str] = Field(
+        default=None,
+        description="Human-readable label for the post type"
+    )
+    theme: Optional[str] = Field(
+        default=None,
+        description="Theme slug to add the post type file to. If not provided, outputs to stdout."
+    )
+    dashicon: Optional[str] = Field(
+        default=None,
+        description="Dashicon name for menu icon (e.g., 'dashicons-book')"
+    )
+    textdomain: Optional[str] = Field(
+        default=None,
+        description="Text domain for translations"
+    )
+
+
+class WpCliScaffoldTaxonomyInput(BaseModel):
+    """Input for WP-CLI scaffold taxonomy command."""
+    taxonomy: str = Field(
+        description="Taxonomy slug (lowercase, no spaces)"
+    )
+    post_types: str = Field(
+        description="Comma-separated list of post types the taxonomy applies to"
+    )
+    label: Optional[str] = Field(
+        default=None,
+        description="Human-readable label for the taxonomy"
+    )
+    theme: Optional[str] = Field(
+        default=None,
+        description="Theme slug to add the taxonomy file to"
+    )
+
+
+class WpCliThemeDeleteInput(BaseModel):
+    """Input for WP-CLI theme delete command."""
+    theme_slug: str = Field(
+        description="Theme directory slug to delete"
+    )

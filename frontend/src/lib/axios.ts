@@ -39,6 +39,18 @@ export const wpCliApi = {
             wp_cli_wp_path: wpCliWpPath,
         })
     },
+
+    discoverPath() {
+        return api.get<{
+            found: boolean
+            path: string | null
+            wp_config_exists: boolean | null
+            cwd: string | null
+            message: string | null
+            source?: 'cwd_search' | 'local_by_flywheel' | 'common_path'
+            site_name?: string
+        }>('/api/wp-cli/discover')
+    },
 }
 
 export const getAccessToken = () => accessToken

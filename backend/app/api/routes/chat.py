@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_active_user
 from app.core.crypto import maybe_decrypt_secret
 from app.core.database import get_db
-from app.agent.tools import set_wp_cli_context
+from app.agent.tools import set_wp_cli_context, discover_wordpress_path
 from app.models.user import User
 from app.models.wordpress_site import WordPressSite
 from app.schemas.chat import (
@@ -67,6 +67,14 @@ async def validate_wp_cli_path(
         )
 
     return WpCliValidateResponse(valid=True, detail="Valid WordPress folder")
+
+
+@router.get("/api/wp-cli/discover")
+async def discover_wp_path(
+    current_user: User = Depends(get_current_active_user),
+):
+    """Auto-discover WordPress installation path from current working directory."""
+    return discover_wordpress_path()
 
 
 @router.post("/api/chat/attachments", response_model=list[AttachmentRef])

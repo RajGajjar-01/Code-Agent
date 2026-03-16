@@ -299,10 +299,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 # -----------------------------------------------------------------------------
 
 # Production server configuration
-CMD ["gunicorn", "app.main:app", \
-     "--workers", "2", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:${PORT:-8000}", \
-     "--timeout", "120", \
-     "--access-logfile", "-", \
-     "--log-level", "info"]
+# NOTE: We intentionally use `sh -c` so `${PORT}` is expanded at runtime.
+# In exec-form JSON CMD, environment variables are NOT expanded.
+CMD ["sh", "-c", "gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --timeout 120 --access-logfile - --log-level info"]

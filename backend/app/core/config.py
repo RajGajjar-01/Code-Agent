@@ -44,4 +44,17 @@ def _ensure_strong_app_secret_key(settings: Settings) -> Settings:
     return settings
 
 
-settings = _ensure_strong_app_secret_key(Settings())
+def _normalize_database_url(settings: Settings) -> Settings:
+    url = (settings.DATABASE_URL or "").strip()
+    if not url:
+        return settings
+
+    if url.startswith("postgresql://"):
+        settings.DATABASE_URL = "postgresql+asyncpg://" + url[len("postgresql://") :]
+    elif url.startswith("postgres://"):
+        settings.DATABASE_URL = "postgresql+asyncpg://" + url[len("postgres://") :]
+
+    return settings
+
+
+settings = _normalize_database_url(_ensure_strong_app_secret_key(Settings()))

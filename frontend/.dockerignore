@@ -1,0 +1,201 @@
+# =============================================================================
+# DOCKERIGNORE FILE - Frontend (React + Vite)
+# =============================================================================
+# This file specifies which files/directories to EXCLUDE from the Docker build
+# context. Similar to .gitignore but for Docker builds.
+#
+# WHY IS THIS IMPORTANT?
+# -----------------------------------------------------------------------------
+# 1. FASTER BUILDS: Smaller context = faster upload to Docker daemon
+# 2. SMALLER IMAGES: Excluded files won't accidentally end up in the image
+# 3. SECURITY: Prevents sensitive files from being included
+# 4. CACHING: Excluding frequently changing files improves layer caching
+#
+# HOW IT WORKS:
+# -----------------------------------------------------------------------------
+# When you run `docker build .`, Docker:
+# 1. Reads .dockerignore
+# 2. Creates a "build context" (tar archive of files NOT in .dockerignore)
+# 3. Sends context to Docker daemon
+#
+# Files listed here will NOT be available during COPY instructions.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# NODE_MODULES - CRITICAL!
+# -----------------------------------------------------------------------------
+# node_modules should NEVER be copied into Docker images!
+# 
+# Why?
+# - Huge size (often 200-500MB)
+# - Contains platform-specific binaries (won't work in Alpine Linux container)
+# - We run npm ci inside the container to get correct binaries
+#
+# If you copy node_modules, the build will likely fail with:
+# "Error: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.28' not found"
+# This happens because your local binaries are for your OS, not Alpine Linux.
+
+node_modules/
+
+# -----------------------------------------------------------------------------
+# BUILD OUTPUT
+# -----------------------------------------------------------------------------
+# The dist/ directory contains the build output.
+# We don't copy it because we build fresh inside the container.
+# This ensures consistent builds across different environments.
+
+dist/
+build/
+.next/
+out/
+.nuxt/
+
+# -----------------------------------------------------------------------------
+# ENVIRONMENT FILES
+# -----------------------------------------------------------------------------
+# .env files contain secrets - NEVER include them in the image!
+# Railway provides environment variables at runtime.
+#
+# VITE_* variables are embedded at build time via build args.
+# The actual .env file should not be copied.
+
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.*.local
+
+# Keep .env.example for documentation
+
+# -----------------------------------------------------------------------------
+# GIT
+# -----------------------------------------------------------------------------
+# Git history and configuration is not needed in the container.
+
+.git/
+.gitignore
+.gitattributes
+
+# -----------------------------------------------------------------------------
+# IDE AND EDITOR FILES
+# -----------------------------------------------------------------------------
+# IDE-specific files should not be in production images.
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# -----------------------------------------------------------------------------
+# TESTING
+# -----------------------------------------------------------------------------
+# Test files and coverage reports are not needed in production.
+
+coverage/
+.nyc_output/
+*.lcov
+
+# Test configuration files
+jest.config.*
+vitest.config.*
+playwright.config.*
+cypress/
+
+# -----------------------------------------------------------------------------
+# DOCUMENTATION
+# -----------------------------------------------------------------------------
+# README and documentation files are not needed at runtime.
+
+README.md
+README*.md
+CHANGELOG.md
+CHANGES.md
+CONTRIBUTING.md
+docs/
+
+# -----------------------------------------------------------------------------
+# TYPESCRIPT CACHE
+# -----------------------------------------------------------------------------
+# TypeScript build cache files.
+
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# ESLINT AND PRETTIER
+# -----------------------------------------------------------------------------
+# Linting and formatting configuration (not needed in production).
+
+.eslintcache
+.prettiercache
+.eslintignore
+.prettierignore
+.prettierrc
+.prettierrc.*
+
+# -----------------------------------------------------------------------------
+# LOGS
+# -----------------------------------------------------------------------------
+# Log files from development.
+
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------------------------------------------------------
+# OS FILES
+# -----------------------------------------------------------------------------
+# Operating system generated files.
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# -----------------------------------------------------------------------------
+# DOCKER FILES
+# -----------------------------------------------------------------------------
+# Docker files themselves shouldn't be in the build context.
+
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile*
+.docker/
+
+# -----------------------------------------------------------------------------
+# MISC
+# -----------------------------------------------------------------------------
+
+# Lock files (we copy these explicitly for caching)
+# Actually, we DO want package-lock.json for npm ci
+# package-lock.json - DO NOT EXCLUDE
+
+# TypeScript config (we need these for build)
+# tsconfig.json - DO NOT EXCLUDE
+
+# Vite config (we need this for build)
+# vite.config.ts - DO NOT EXCLUDE
+
+# Editor directories
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

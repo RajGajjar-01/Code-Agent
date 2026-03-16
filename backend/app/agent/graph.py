@@ -66,7 +66,23 @@ async def agent_node(state: AgentState) -> dict:
         )
         messages = messages + [warning_msg]
 
-    response = await llm.ainvoke(messages)
+    config = get_agent_config()
+    try:
+        response = await llm.ainvoke(messages)
+    except Exception as e:
+        logger.error(
+            "LLM invocation failed",
+            extra={
+                "llm_provider": config.llm_provider,
+                "groq_model": getattr(config, "groq_model", None),
+                "glm5_model": getattr(config, "glm5_model", None),
+                "gemini_model": getattr(config, "gemini_model", None),
+                "error_type": type(e).__name__,
+                "error": str(e),
+            },
+            exc_info=True,
+        )
+        raise
 
     return {"messages": [response]}
 
@@ -129,6 +145,20 @@ async def tool_node(state: AgentState) -> dict:
         "create_tag",
     }
 
+    def _redact(value: Any) -> Any:
+        if isinstance(value, dict):
+            redacted: dict[str, Any] = {}
+            for k, v in value.items():
+                key = str(k).lower()
+                if any(s in key for s in ("password", "secret", "token", "api_key", "authorization")):
+                    redacted[k] = "[redacted]"
+                else:
+                    redacted[k] = _redact(v)
+            return redacted
+        if isinstance(value, list):
+            return [_redact(x) for x in value]
+        return value
+
     def _compact_tool_result(value: Any, tool_name: str) -> Any:
         # Keep ToolMessage payloads small to avoid re-sending huge JSON back to the LLM.
         if isinstance(value, dict):
@@ -149,7 +179,7 @@ async def tool_node(state: AgentState) -> dict:
                 return out
 
             # Common list keys: keep only a small sample and light fields.
-            for key in ("pages", "posts", "media", "themes", "menus", "items", "users"):
+            for key in ("pages", "posts", "media", "themes", "menus", "items", "users", "types"):
                 if key in value and isinstance(value[key], list):
                     items = value[key]
                     sample = items[:10]
@@ -157,7 +187,7 @@ async def tool_node(state: AgentState) -> dict:
                     def light(obj: Any) -> Any:
                         if not isinstance(obj, dict):
                             return obj
-                        keep_keys = ("id", "title", "name", "slug", "link", "status", "url")
+                        keep_keys = ("id", "title", "name", "slug", "link", "status", "url", "rest_base", "rest_namespace")
                         return {k: obj.get(k) for k in keep_keys if k in obj}
 
                     return {
@@ -177,6 +207,14 @@ async def tool_node(state: AgentState) -> dict:
         func_args = tc["args"]
         start_time = time.time()
 
+        logger.info(
+            "Tool call requested",
+            extra={
+                "tool": func_name,
+                "arguments": _redact(func_args) if isinstance(func_args, dict) else func_args,
+            },
+        )
+
         if func_name in write_tools:
             # Do not execute. Return a structured confirmation request.
             result = {
@@ -194,6 +232,17 @@ async def tool_node(state: AgentState) -> dict:
             content = json.dumps(result)
             tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
             duration_ms = (time.time() - start_time) * 1000
+
+            logger.info(
+                "Tool call pending confirmation",
+                extra={
+                    "tool": func_name,
+                    "status": status,
+                    "duration_ms": duration_ms,
+                    "result": _compact_tool_result(result, func_name),
+                },
+            )
+
             execution_metadata["total_tool_calls"] += 1
             executed.append(
                 {
@@ -254,6 +303,17 @@ async def tool_node(state: AgentState) -> dict:
             "duration_ms": duration_ms,
         })
 
+        logger.info(
+            "Tool call completed",
+            extra={
+                "tool": func_name,
+                "status": status,
+                "duration_ms": duration_ms,
+                "arguments": _redact(func_args) if isinstance(func_args, dict) else func_args,
+                "result": compact,
+            },
+        )
+
     return {
         "messages": tool_results,
         "tool_calls_executed": executed,
@@ -289,6 +349,8 @@ async def run_agent(
     wp_client: Any = None,
     thread_id: str | None = None,
     llm_provider: str | None = None,
+    wp_site_id: int | None = None,
+    wp_site_name: str | None = None,
 ) -> dict:
     wp_token = set_wp_client(wp_client)
 
@@ -308,6 +370,21 @@ async def run_agent(
         logger.info(f"Using LLM provider: {llm_provider}")
 
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
+
+    # Dynamic schema context (experimental)
+    config = get_agent_config()
+    if wp_client is not None and config.wp_dynamic_schema_context and wp_site_id is not None:
+        try:
+            from app.agent.schema_context import build_schema_context
+            schema_block, _ = await build_schema_context(
+                wp_client=wp_client,
+                site_id=wp_site_id,
+                site_name=wp_site_name or "WordPress Site",
+            )
+            messages.append(SystemMessage(content=schema_block))
+            logger.info(f"Dynamic schema context injected for site {wp_site_id}")
+        except Exception as e:
+            logger.warning(f"Failed to build schema context: {e}")
 
     # Keep a small rolling history window to reduce prompt tokens.
     history_window = 10

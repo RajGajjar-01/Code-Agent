@@ -40,6 +40,7 @@ from app.agent.tools_schema import (
     ListMenuItemsInput,
     ListMenusInput,
     ListPagesInput,
+    ListPostTypesInput,
     ListPostsInput,
     ListTagsInput,
     ListUsersInput,
@@ -393,12 +394,17 @@ async def _list_posts(per_page: int = 10, status: str = "publish") -> dict:
     return await _client().list_posts(per_page=per_page, status=status)
 
 
+async def _list_post_types(query: str = "", limit: int = 30) -> dict:
+    # Keep output small/bounded to avoid stalling the agent on large tool responses.
+    return await _client().list_post_types(query=query, limit=limit)
+
+
 async def _get_post(post_id: int) -> dict:
     return await _client().get_post(post_id)
 
 
-async def _create_post(title: str, content: str, status: str = "publish") -> dict:
-    return await _client().create_post(title=title, content=content, status=status)
+async def _create_post(post_type: str, title: str, content: str, status: str = "publish") -> dict:
+    return await _client().create_post(post_type=post_type, title=title, content=content, status=status)
 
 
 async def _update_post(
@@ -488,11 +494,11 @@ async def _bulk_upload_media(files: list[dict], concurrency: int = 3) -> dict:
     return await _client().bulk_upload_media(files, concurrency=concurrency)
 
 
-async def _get_acf_fields(post_id: int, post_type: str = "pages") -> dict:
+async def _get_acf_fields(post_id: int, post_type: str = "posts") -> dict:
     return await _client().get_acf_fields(post_id, post_type=post_type)
 
 
-async def _update_acf_fields(post_id: int, fields: dict, post_type: str = "pages") -> dict:
+async def _update_acf_fields(post_id: int, fields: dict, post_type: str = "posts") -> dict:
     return await _client().update_acf_fields(post_id, fields, post_type=post_type)
 
 
@@ -893,14 +899,21 @@ delete_page = StructuredTool.from_function(
 list_posts = StructuredTool.from_function(
     func=_list_posts,
     name="list_posts",
-    description="List all WordPress posts. Returns post IDs, titles, and links.",
+    description="List WordPress posts.",
     args_schema=ListPostsInput,
     coroutine=_list_posts,
+)
+list_post_types = StructuredTool.from_function(
+    func=_list_post_types,
+    name="list_post_types",
+    description="List REST-exposed post types with their REST base. Use query to search (e.g. query='team').",
+    args_schema=ListPostTypesInput,
+    coroutine=_list_post_types,
 )
 get_post = StructuredTool.from_function(
     func=_get_post,
     name="get_post",
-    description="Get a specific WordPress post by ID.",
+    description="Get a WordPress post by ID.",
     args_schema=GetPostInput,
     coroutine=_get_post,
 )
@@ -1305,6 +1318,7 @@ ALL_TOOLS = [
     bulk_delete_pages,
     fetch_all_pages,
     # Posts
+    list_post_types,
     list_posts,
     get_post,
     create_post,
@@ -1371,6 +1385,7 @@ READ_TOOLS = [
     list_pages,
     get_page,
     # Posts
+    list_post_types,
     list_posts,
     get_post,
     # Media

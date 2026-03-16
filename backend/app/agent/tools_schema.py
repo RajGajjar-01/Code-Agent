@@ -40,11 +40,26 @@ class ListPostsInput(BaseModel):
     status: str = Field(default="publish", description="Post status filter")
 
 
+class ListPostTypesInput(BaseModel):
+    query: str = Field(
+        default="",
+        description="Optional search term to filter post types by slug or name.",
+    )
+    limit: int = Field(
+        default=30,
+        description="Maximum number of post types to return.",
+    )
+
+
 class GetPostInput(BaseModel):
     post_id: int = Field(description="WordPress post ID")
 
 
 class CreatePostInput(BaseModel):
+    post_type: str = Field(
+        default="posts",
+        description="REST base for the post type (e.g. 'posts', 'pages', 'team', 'teams').",
+    )
     title: str = Field(description="Post title")
     content: str = Field(description="HTML content")
     status: str = Field(default="publish", description="Post status")
@@ -183,13 +198,19 @@ class CreateMenuTreeInput(BaseModel):
 
 class GetAcfFieldsInput(BaseModel):
     post_id: int = Field(description="WordPress post/page ID")
-    post_type: str = Field(default="pages", description="'pages' or 'posts'")
+    post_type: str = Field(
+        default="posts",
+        description="REST base for the post type (e.g. 'posts', 'pages', 'team', 'teams').",
+    )
 
 
 class UpdateAcfFieldsInput(BaseModel):
     post_id: int = Field(description="WordPress post/page ID")
     fields: dict = Field(description="ACF fields payload")
-    post_type: str = Field(default="pages", description="'pages' or 'posts'")
+    post_type: str = Field(
+        default="posts",
+        description="REST base for the post type (e.g. 'posts', 'pages', 'team', 'teams').",
+    )
 
 
 class CreateThemeFileInput(BaseModel):

@@ -40,7 +40,7 @@ class LLMProviderFactory:
 
         elif config.llm_provider == "glm5":
             # GLM-5 uses OpenAI-compatible API
-            logger.info(f"Using GLM-5 model: {config.glm5_model}")
+            logger.info(f"Using GLM-4.7-flash model: {config.glm5_model}")
             return ChatOpenAI(
                 base_url="https://api.z.ai/api/paas/v4",
                 api_key=config.zai_api_key,

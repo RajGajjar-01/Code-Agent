@@ -8,6 +8,8 @@ async def process_chat(
     history: list[dict],
     wp_client: Optional[Any] = None,
     llm_provider: Optional[str] = None,
+    wp_site_id: Optional[int] = None,
+    wp_site_name: Optional[str] = None,
 ) -> dict:
     """Process a chat message through the LangGraph WordPress agent."""
     return await run_agent(
@@ -15,4 +17,6 @@ async def process_chat(
         history=history,
         wp_client=wp_client,
         llm_provider=llm_provider,
+        wp_site_id=wp_site_id,
+        wp_site_name=wp_site_name,
     )

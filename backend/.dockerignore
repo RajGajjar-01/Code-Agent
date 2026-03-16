@@ -1,0 +1,174 @@
+# =============================================================================
+# DOCKERIGNORE FILE - Backend
+# =============================================================================
+# This file specifies which files/directories to EXCLUDE from the Docker build
+# context. This is similar to .gitignore but for Docker builds.
+#
+# WHY IS THIS IMPORTANT?
+# -----------------------------------------------------------------------------
+# 1. FASTER BUILDS: Smaller context = faster upload to Docker daemon
+# 2. SMALLER IMAGES: Excluded files won't accidentally end up in the image
+# 3. SECURITY: Prevents sensitive files from being included
+# 4. CACHING: Excluding frequently changing files improves layer caching
+#
+# HOW IT WORKS:
+# -----------------------------------------------------------------------------
+# When you run `docker build .`, Docker:
+# 1. Reads .dockerignore
+# 2. Creates a "build context" (tar archive of files NOT in .dockerignore)
+# 3. Sends context to Docker daemon
+#
+# Files listed here will NOT be available during COPY instructions.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# PYTHON ENVIRONMENT
+# -----------------------------------------------------------------------------
+# Virtual environments should NEVER be copied into Docker images.
+# - They contain system-specific binaries (won't work in container)
+# - They're huge (hundreds of MB)
+# - We create a fresh environment inside the container
+
+.venv/
+venv/
+env/
+ENV/
+
+# -----------------------------------------------------------------------------
+# PYTHON CACHE FILES
+# -----------------------------------------------------------------------------
+# Python creates these automatically when running .py files.
+# They're platform-specific and should be regenerated in the container.
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# -----------------------------------------------------------------------------
+# TESTING ARTIFACTS
+# -----------------------------------------------------------------------------
+# Test files, coverage reports, and pytest cache should not be in production.
+# Your pyproject.toml has dev dependencies for testing - we skip them in prod.
+
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Test files themselves (optional - you might want to include for debugging)
+# tests/
+# *_test.py
+# test_*.py
+
+# -----------------------------------------------------------------------------
+# GIT
+# -----------------------------------------------------------------------------
+# Git history and configuration is not needed in the container.
+# This also prevents potential security issues with git hooks.
+
+.git/
+.gitignore
+.gitattributes
+
+# -----------------------------------------------------------------------------
+# IDE AND EDITOR FILES
+# -----------------------------------------------------------------------------
+# IDE-specific files should not be in production images.
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# -----------------------------------------------------------------------------
+# ENVIRONMENT FILES
+# -----------------------------------------------------------------------------
+# .env files contain secrets - NEVER include them in the image!
+# Railway provides environment variables at runtime.
+# 
+# IMPORTANT: We keep .env.example for reference but exclude actual .env
+
+.env
+.env.local
+.env.*.local
+
+# Keep .env.example as documentation (don't exclude it)
+
+# -----------------------------------------------------------------------------
+# DOCKER FILES
+# -----------------------------------------------------------------------------
+# Don't include docker-compose files in the build context.
+# They're for local development only.
+
+docker-compose.yml
+docker-compose.*.yml
+.docker/
+
+# -----------------------------------------------------------------------------
+# DOCUMENTATION
+# -----------------------------------------------------------------------------
+# README and documentation files are not needed at runtime.
+# Excluding them reduces image size.
+
+README.md
+docs/
+*.md
+
+# -----------------------------------------------------------------------------
+# MISCELLANEOUS
+# -----------------------------------------------------------------------------
+
+# Python version file (pyproject.toml specifies the version)
+.python-version
+
+# WP-CLI cache (will be regenerated in container)
+.wp-cli/
+
+# Coverage reports
+coverage.xml
+*.cover
+
+# Jupyter notebooks (if any)
+.ipynb_checkpoints/
+
+# MyPy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Pytype static type analyzer
+.pytype/
+
+# Local development files
+*.log
+*.tmp
+*.bak
+
+# Uploads directory (will be created fresh in container)
+# Comment out if you want to include sample uploads
+# uploads/

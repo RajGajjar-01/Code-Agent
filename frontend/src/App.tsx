@@ -8,6 +8,7 @@ import { ChatPage } from '@/pages/chat-page'
 import { ProfilePage } from '@/pages/profile-page'
 import { LoginPage } from '@/pages/login-page'
 import { SignupPage } from '@/pages/signup-page'
+import { NotFoundPage } from '@/pages/not-found-page'
 import { useUserStore } from '@/stores/user-store'
 
 function AuthGuard() {
@@ -70,6 +71,9 @@ export default function App() {
                             <Route path="/profile" element={<ProfilePage />} />
                         </Route>
                     </Route>
+
+                    {/* Catch-all route for 404 */}
+                    <Route path="*" element={<NotFoundPage />} />
                 </Routes>
             </BrowserRouter>
             <Toaster richColors position="bottom-right" />

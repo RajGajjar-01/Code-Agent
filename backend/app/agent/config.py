@@ -110,6 +110,20 @@ class AgentConfig(BaseSettings):
         validation_alias=AliasChoices("WP_CLI_AUTO_INSTALL", "AGENT_WP_CLI_AUTO_INSTALL"),
     )
 
+    # Dynamic schema context (experimental)
+    wp_dynamic_schema_context: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("WP_DYNAMIC_SCHEMA_CONTEXT", "AGENT_WP_DYNAMIC_SCHEMA_CONTEXT"),
+    )
+    wp_dynamic_schema_ttl: int = Field(
+        default=600,  # 10 minutes in seconds
+        validation_alias=AliasChoices("WP_DYNAMIC_SCHEMA_TTL", "AGENT_WP_DYNAMIC_SCHEMA_TTL"),
+    )
+    wp_dynamic_schema_options_introspection: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("WP_DYNAMIC_SCHEMA_OPTIONS_INTROSPECTION", "AGENT_WP_DYNAMIC_SCHEMA_OPTIONS_INTROSPECTION"),
+    )
+
     model_config = {
         "case_sensitive": False,
     }

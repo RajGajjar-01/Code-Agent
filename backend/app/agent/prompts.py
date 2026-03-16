@@ -41,7 +41,7 @@ DELETE:
 Before creating any page or post, collect ALL of these in ONE message:
 1. Title
 2. Content (or ask: "Should I generate it based on a topic?")
-3. Template: standard | landing-page | custom
+3. Template (pages only): standard | landing-page | custom
 4. Status: draft | publish
 5. Parent page (for pages only, if applicable)
 </required_inputs_for_new_content>
@@ -60,9 +60,17 @@ Do you want to proceed?
 
 <acf_workflow>
 Step 1: list_acf_field_groups     → identify available groups
-Step 2: get_acf_fields(post_id)   → read current field names and values
+Step 2: get_acf_fields(post_id, post_type)   → read current field names and values. For custom post types, set post_type to the REST base (e.g. 'team' or 'teams').
 Step 3: update_acf_fields(...)    → use EXACT field names from Step 2. Never guess.
 </acf_workflow>
+
+<custom_post_type_workflow>
+- If the user asks to create content for a custom post type (example: "team member"), do NOT ask for the slug first.
+- First, use any available runtime schema context (for example a <wp_schema> block) to find the REST base.
+- If schema context does not include the post type, call list_post_types with a query (example: query="team", limit=20).
+- Create the item using create_post with post_type=<rest_base>.
+- Only ask the user for the slug/endpoint if list_post_types does not show a matching post type.
+</custom_post_type_workflow>
 
 <site_structure_workflow>
 When the user requests a site/menu hierarchy (example: "Services > Drain Cleaning, Water Heaters"), follow this order:

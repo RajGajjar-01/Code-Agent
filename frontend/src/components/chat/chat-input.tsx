@@ -160,7 +160,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
                         </div>
                     </div>
                 </div>
-                <p className="text-center text-[0.72rem] text-muted-foreground mt-2 opacity-60">
+                <p className="text-center text-[0.75rem] text-muted-foreground mt-2 opacity-60">
                     WP Agent can make mistakes. Review generated content before publishing.
                 </p>
             </div>

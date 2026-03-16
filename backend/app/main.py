@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,8 +12,25 @@ from app.core.config import settings
 from app.agent.tools import ensure_wp_cli_installed
 
 
+def _configure_logging() -> None:
+    level_name = (os.getenv("LOG_LEVEL") or "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    root = logging.getLogger()
+    if not root.handlers:
+        logging.basicConfig(
+            level=level,
+            format="%(levelname)s %(name)s %(message)s",
+        )
+    else:
+        root.setLevel(level)
+
+    logging.getLogger("app").setLevel(level)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _configure_logging()
     await ensure_wp_cli_installed()
 
     yield

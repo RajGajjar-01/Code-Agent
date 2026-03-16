@@ -275,6 +275,49 @@ class WordPressClient:
             "total_pages": int(response.headers.get("X-WP-TotalPages", 0)),
         }
 
+    async def list_post_types(self, query: str = "", limit: int = 30) -> dict:
+        response = await self._request(
+            "GET",
+            f"{self.base_url}/wp-json/wp/v2/types",
+            timeout=5.0,
+        )
+        data = response.json()
+        if not isinstance(data, dict):
+            return {"types": []}
+
+        q = (query or "").strip().lower()
+        try:
+            lim = int(limit)
+        except Exception:
+            lim = 30
+        lim = max(1, min(lim, 100))
+
+        items: list[dict[str, Any]] = []
+        for slug, obj in data.items():
+            if not isinstance(obj, dict):
+                continue
+
+            name = obj.get("name") or ""
+            rest_base = obj.get("rest_base") or slug
+            rest_namespace = obj.get("rest_namespace") or "wp/v2"
+
+            if q:
+                hay = f"{slug} {name} {rest_base}".lower()
+                if q not in hay:
+                    continue
+
+            items.append(
+                {
+                    "slug": slug,
+                    "name": name,
+                    "rest_base": rest_base,
+                    "rest_namespace": rest_namespace,
+                }
+            )
+
+        items.sort(key=lambda x: x.get("slug") or "")
+        return {"types": items[:lim], "returned": min(len(items), lim), "total": len(items)}
+
     async def get_post(self, post_id: int) -> dict:
         response = await self._request("GET", f"{self.api_url}/posts/{post_id}")
         p = response.json()
@@ -292,11 +335,13 @@ class WordPressClient:
             "acf": p.get("acf", {}),
         }
 
-    async def create_post(self, title: str, content: str, **kwargs) -> dict:
+    async def create_post(self, title: str, content: str, post_type: str = "posts", **kwargs) -> dict:
         data = {"title": title, "content": content, **kwargs}
-        response = await self._request("POST", f"{self.api_url}/posts", json=data)
+        # post_type is the REST base (e.g. 'posts', 'pages', 'team', 'teams').
+        post_type = (post_type or "posts").strip().strip("/")
+        response = await self._request("POST", f"{self.api_url}/{post_type}", json=data)
         p = response.json()
-        return {"id": p["id"], "link": p["link"], "status": p["status"]}
+        return {"id": p["id"], "link": p.get("link"), "status": p.get("status")}
 
     async def update_post(self, post_id: int, **kwargs) -> dict:
         response = await self._request("POST", f"{self.api_url}/posts/{post_id}", json=kwargs)
@@ -457,22 +502,25 @@ class WordPressClient:
             page += 1
         return items
 
-    async def get_acf_fields(self, post_id: int, post_type: str = "pages") -> dict:
+    async def get_acf_fields(self, post_id: int, post_type: str = "posts") -> dict:
+        post_type = (post_type or "posts").strip().strip("/")
         response = await self._request("GET", f"{self.api_url}/{post_type}/{post_id}")
         data = response.json()
         return {
             "id": data["id"],
-            "title": data["title"]["rendered"],
+            "type": data.get("type"),
             "acf": data.get("acf", {}),
         }
 
-    async def update_acf_fields(self, post_id: int, fields: dict, post_type: str = "pages") -> dict:
+    async def update_acf_fields(self, post_id: int, fields: dict, post_type: str = "posts") -> dict:
+        post_type = (post_type or "posts").strip().strip("/")
         payload = {"acf": fields}
         response = await self._request("POST", f"{self.api_url}/{post_type}/{post_id}", json=payload)
         data = response.json()
         return {
             "id": data["id"],
-            "updated_acf": data.get("acf", {}),
+            "type": data.get("type"),
+            "acf": data.get("acf", {}),
         }
 
     async def list_acf_field_groups(self) -> dict:

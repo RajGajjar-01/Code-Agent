@@ -151,6 +151,7 @@ async def chat(
     
     wp_for_request = None
     created_client: WordPressClient | None = None
+    site = None
 
     try:
         set_wp_cli_context(
@@ -341,6 +342,8 @@ async def chat(
             history=history,
             wp_client=wp_for_request,
             llm_provider=request.llm_provider,
+            wp_site_id=request.wp_site_id,
+            wp_site_name=site.name if site else None,
         )
 
         # 4. Persist both turns

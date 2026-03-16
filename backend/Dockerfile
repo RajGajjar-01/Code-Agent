@@ -173,6 +173,10 @@ COPY pyproject.toml uv.lock ./
 # Install dependencies using uv (fast!)
 RUN uv sync --frozen --no-install-project
 
+# Make sure CLI entrypoints installed into the uv virtual environment are on PATH.
+# uv creates a venv at /app/.venv by default, so binaries live in /app/.venv/bin.
+ENV PATH="/app/.venv/bin:${PATH}"
+
 # -----------------------------------------------------------------------------
 # SECTION 9: COPY APPLICATION SOURCE CODE
 # -----------------------------------------------------------------------------

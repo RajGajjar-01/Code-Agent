@@ -163,6 +163,10 @@ LABEL maintainer="WordPress Agent Team" \
       service="${RAILWAY_SERVICE_NAME:-frontend}" \
       environment="${RAILWAY_ENVIRONMENT:-production}"
 
+ # Default backend URL for local runs. On Railway, set BACKEND_URL as a service
+ # variable (ideally referencing backend via private networking).
+ ENV BACKEND_URL=http://backend.railway.internal:8000
+
 # -----------------------------------------------------------------------------
 # Remove Default nginx Configuration
 # -----------------------------------------------------------------------------
@@ -184,7 +188,10 @@ RUN rm /etc/nginx/conf.d/default.conf
 # - Handles client-side routing
 # - Adds security headers
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ # nginx official image supports envsubst templates placed under
+ # /etc/nginx/templates/*.template. These are rendered at container start using
+ # environment variables.
+ COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # -----------------------------------------------------------------------------
 # Copy Built Static Files
@@ -214,29 +221,6 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 RUN mkdir -p /var/cache/nginx /var/log/nginx /var/run && \
     chown -R nginx:nginx /var/cache/nginx /var/log/nginx /var/run && \
     chown -R nginx:nginx /usr/share/nginx/html
-
-# -----------------------------------------------------------------------------
-# Create Non-Root User Setup
-# -----------------------------------------------------------------------------
-# By default, nginx:alpine runs as nginx user (not root).
-# We ensure proper permissions on all files.
-#
-# Why non-root?
-# - Security best practice
-# - Limits damage if container is compromised
-# - Required by some platforms and security policies
-
-# The nginx user already exists in the alpine image
-# Just ensure permissions are correct
-RUN chown -R nginx:nginx /usr/share/nginx/html
-
-# -----------------------------------------------------------------------------
-# Switch to Non-Root User
-# -----------------------------------------------------------------------------
-# USER nginx switches to the nginx user for all subsequent commands
-# and for the final running container.
-
-USER nginx
 
 # -----------------------------------------------------------------------------
 # Expose Port

@@ -25,6 +25,10 @@ def _configure_logging() -> None:
 
     logging.getLogger("app").setLevel(level)
 
+    # Debug: Log FRONTEND_ORIGIN
+    logger = logging.getLogger(__name__)
+    logger.info(f"FRONTEND_ORIGIN configured as: {settings.FRONTEND_ORIGIN}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,7 +47,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN],
+    allow_origins=[
+        settings.FRONTEND_ORIGIN,
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

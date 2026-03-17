@@ -80,10 +80,9 @@ api.interceptors.response.use(
             originalRequest._retry = true
 
             try {
-                const { data } = await axios.post(
+                const { data } = await api.post(
                     '/api/auth/refresh',
-                    {},
-                    { withCredentials: true }
+                    {}
                 )
 
                 setAccessToken(data.access_token)

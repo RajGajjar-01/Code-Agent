@@ -8,7 +8,7 @@ import type {
 } from '@/types'
 
 const api = axios.create({
-    baseURL: '',
+    baseURL: 'https://code-agent-production.up.railway.app',
     headers: { 'Content-Type': 'application/json' },
     withCredentials: true,
 })

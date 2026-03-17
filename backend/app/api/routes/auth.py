@@ -104,7 +104,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/",
     )
@@ -146,7 +146,7 @@ async def login(
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/",
     )
@@ -201,7 +201,7 @@ async def refresh(
         value=new_refresh_token,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/",
     )

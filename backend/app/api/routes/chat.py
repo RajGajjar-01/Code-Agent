@@ -32,6 +32,7 @@ from app.services.conversation import (
     soft_delete_conversation,
 )
 from app.services.wordpress import WordPressClient
+from app.services.supabase_storage import upload_image as supabase_upload
 from app.agent.errors import create_error_response
 from app.agent.tools import ALL_TOOLS, reset_wp_client, set_wp_client
 
@@ -42,7 +43,6 @@ router = APIRouter(tags=["chat"])
 # wp_client is injected at startup from main.py (same pattern as before)
 wp_client = None
 
-_UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "chat"
 _MAX_FILES_PER_MESSAGE = 5
 _MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -90,9 +90,6 @@ async def upload_chat_attachments(
             detail=f"Max {_MAX_FILES_PER_MESSAGE} images per message",
         )
 
-    user_dir = _UPLOADS_DIR / current_user.email
-    user_dir.mkdir(parents=True, exist_ok=True)
-
     uploaded: list[AttachmentRef] = []
     for f in files:
         if not (f.content_type or "").startswith("image/"):
@@ -100,32 +97,43 @@ async def upload_chat_attachments(
 
         attachment_id = str(uuid.uuid4())
         safe_name = Path(f.filename or "upload").name
-        stored_name = f"{attachment_id}_{safe_name}"
-        out_path = user_dir / stored_name
 
         total = 0
+        chunks = []
         try:
-            with open(out_path, "wb") as out:
-                while True:
-                    chunk = await f.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > _MAX_FILE_SIZE_BYTES:
-                        raise HTTPException(status_code=400, detail="Image exceeds 10MB limit")
-                    out.write(chunk)
+            while True:
+                chunk = await f.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _MAX_FILE_SIZE_BYTES:
+                    raise HTTPException(status_code=400, detail="Image exceeds 10MB limit")
+                chunks.append(chunk)
         finally:
             await f.close()
 
-        url = f"/uploads/chat/{current_user.email}/{stored_name}"
+        file_data = b"".join(chunks)
+        folder = f"chat/{current_user.email}"
+
+        try:
+            result = await supabase_upload(
+                file_data=file_data,
+                filename=safe_name,
+                folder=folder,
+                content_type=f.content_type,
+            )
+        except Exception as e:
+            logger.error(f"Supabase upload failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Image upload failed: {e}")
+
         uploaded.append(
             AttachmentRef(
                 id=attachment_id,
                 filename=safe_name,
                 content_type=f.content_type or "application/octet-stream",
                 size_bytes=total,
-                url=url,
-                local_path=str(out_path.resolve()),
+                url=result["public_url"],
+                local_path=result["path"],
             )
         )
 

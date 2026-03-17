@@ -18,6 +18,19 @@ services:
     networks:
       - backend_network
 
+  backend:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend_network
+
   pgadmin:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
@@ -34,7 +47,6 @@ services:
 
 volumes:
   pgdata:
-
 
 networks:
   backend_network:

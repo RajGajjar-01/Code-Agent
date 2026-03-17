@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     APP_SECRET_KEY: str = "change-me-in-production"
     FRONTEND_ORIGIN: str = "http://localhost:8000"
 
+    # Supabase (image storage)
+    SUPABASE_URL: str = ""
+    SUPABASE_SECRET_KEY: str = ""
+    SUPABASE_BUCKET_NAME: str = "images"
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

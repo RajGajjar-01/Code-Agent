@@ -1,11 +1,9 @@
 from contextlib import asynccontextmanager
 import logging
 import os
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import auth, chat, drive, menus, wp_sites
 from app.core.config import settings
@@ -42,12 +40,6 @@ app = FastAPI(
     version="0.3.0",
     lifespan=lifespan,
 )
-
-_BACKEND_ROOT = Path(__file__).resolve().parents[1]
-_UPLOADS_ROOT = _BACKEND_ROOT / "uploads"
-_UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
-
-app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_ROOT)), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

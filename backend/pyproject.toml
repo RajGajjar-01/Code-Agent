@@ -5,12 +5,14 @@ description = "AI-powered WordPress site builder agent with Google Drive integra
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "beautifulsoup4>=4.14.0",
+    # Web framework
     "fastapi[standard]>=0.133.0",
     "gunicorn>=22.0.0",
     "httpx>=0.28.0",
     "python-dotenv>=1.2.0",
     "cryptography>=46.0.0",
+    "orjson>=3.11.7",
+    "beautifulsoup4>=4.14.0",
     # Settings management
     "pydantic-settings>=2.7.0",
     # Database
@@ -25,36 +27,43 @@ dependencies = [
     # LangChain + LangGraph (agentic core)
     "langchain-core>=1.2.8,<2",
     "langchain-groq>=1.1.0,<2",
-    "langchain-openai>=1.0.0,<2",  # For GLM-5 (OpenAI-compatible)
-    "langchain-google-genai>=2.0.0,<3",  # For Gemini
+    "langchain-openai>=1.0.0,<2",
+    "langchain-google-genai>=2.0.0,<3",
     "langgraph>=1.0.0,<2",
-    "langgraph-checkpoint-sqlite>=2.0.0,<3",  # For state persistence
+    "langgraph-checkpoint-sqlite>=2.0.0,<3",
     # Authentication
     "pyjwt>=2.11.0",
     "bcrypt>=5.0.0",
     "passlib>=1.7.4",
     "email-validator>=2.3.0",
-    # Code quality and testing
+]
+ 
+[project.optional-dependencies]
+dev = [
+    # Testing
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
-    "hypothesis>=6.122.0",
     "pytest-mock>=3.14.0",
+    "hypothesis>=6.122.0",
+    # Linting & formatting
     "flake8>=7.1.0",
     "black>=24.10.0",
     "mypy>=1.13.0",
+    # Security scanning
     "bandit>=1.8.0",
+    # Misc dev utilities
     "tomli>=2.2.0",
-    "orjson>=3.11.7",
 ]
-
+ 
+# --- Tool config below is unchanged ---
+ 
 [tool.black]
 line-length = 100
 target-version = ['py314']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # directories
   \.eggs
   | \.git
   | \.hg
@@ -66,7 +75,7 @@ extend-exclude = '''
   | alembic/versions
 )/
 '''
-
+ 
 [tool.mypy]
 python_version = "3.14"
 warn_return_any = true
@@ -80,18 +89,18 @@ warn_unused_ignores = true
 warn_no_return = true
 follow_imports = "normal"
 ignore_missing_imports = true
-
+ 
 [[tool.mypy.overrides]]
 module = "alembic.*"
 ignore_errors = true
-
+ 
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = "-ra -q --strict-markers --cov=app --cov-report=term-missing --cov-report=html"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-
+ 
 [tool.coverage.run]
 source = ["app"]
 omit = [
@@ -101,12 +110,12 @@ omit = [
     "*/venv/*",
     "*/.venv/*",
 ]
-
+ 
 [tool.coverage.report]
 precision = 2
 show_missing = true
 skip_covered = false
-
+ 
 [tool.bandit]
 exclude_dirs = ["/tests", "/alembic"]
 skips = ["B101", "B601"]
